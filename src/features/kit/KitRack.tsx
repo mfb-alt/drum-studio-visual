@@ -26,12 +26,12 @@ export function KitRack() {
       aria-hidden="true"
     >
       <defs>
-        <linearGradient id="rack-tube" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="4">
+        <linearGradient id="rack-tube" gradientUnits="userSpaceOnUse" spreadMethod="repeat" x1="0" y1="0" x2="0" y2="4">
           <stop offset="0%" stopColor="var(--metal-dark)" />
           <stop offset="40%" stopColor="var(--metal-hi)" />
           <stop offset="100%" stopColor="var(--metal-dark)" />
         </linearGradient>
-        <linearGradient id="rack-tube-v" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="2" y2="0">
+        <linearGradient id="rack-tube-v" gradientUnits="userSpaceOnUse" spreadMethod="repeat" x1="0" y1="0" x2="2" y2="0">
           <stop offset="0%" stopColor="var(--metal-hi)" />
           <stop offset="55%" stopColor="var(--metal)" />
           <stop offset="100%" stopColor="var(--metal-dark)" />
