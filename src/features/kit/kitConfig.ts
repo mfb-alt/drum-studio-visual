@@ -16,6 +16,6 @@ export const TD1KV_PADS: PadDefinition[] = [
   { id: "tom3", label: "Tom 3", shape: "drum", x: 76, y: 58, size: 17, flatten: 0.68, rotate: 10, keyboardKey: "k" },
   { id: "snare", label: "Snare", shape: "drum", x: 29, y: 63, size: 22, flatten: 0.68, rotate: -4, keyboardKey: "s" },
   // Kick tower + beater pedal, centred between the drummer's feet.
-  { id: "kick", label: "Kick", shape: "kick", x: 52, y: 80, size: 20, flatten: 1.05, keyboardKey: " " },
+  { id: "kick", label: "Kick", shape: "kick", x: 52, y: 79, size: 24, flatten: 1.05, keyboardKey: " " },
   { id: "hihat-pedal", label: "Pedal Hi-Hat", shape: "pedal", x: 22, y: 88, size: 15, flatten: 0.72, rotate: -6, keyboardKey: "a" },
 ];
