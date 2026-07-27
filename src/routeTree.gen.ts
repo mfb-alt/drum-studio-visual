@@ -14,6 +14,8 @@ import { Route as PracticarRouteImport } from './routes/practicar'
 import { Route as ConfiguracionRouteImport } from './routes/configuracion'
 import { Route as BibliotecaRouteImport } from './routes/biblioteca'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PracticarIndexRouteImport } from './routes/practicar.index'
+import { Route as PracticarSongIdRouteImport } from './routes/practicar.$songId'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
@@ -40,28 +42,43 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PracticarIndexRoute = PracticarIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => PracticarRoute,
+} as any)
+const PracticarSongIdRoute = PracticarSongIdRouteImport.update({
+  id: '/$songId',
+  path: '/$songId',
+  getParentRoute: () => PracticarRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/biblioteca': typeof BibliotecaRoute
   '/configuracion': typeof ConfiguracionRoute
-  '/practicar': typeof PracticarRoute
+  '/practicar': typeof PracticarRouteWithChildren
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/practicar/$songId': typeof PracticarSongIdRoute
+  '/practicar/': typeof PracticarIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/biblioteca': typeof BibliotecaRoute
   '/configuracion': typeof ConfiguracionRoute
-  '/practicar': typeof PracticarRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/practicar/$songId': typeof PracticarSongIdRoute
+  '/practicar': typeof PracticarIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/biblioteca': typeof BibliotecaRoute
   '/configuracion': typeof ConfiguracionRoute
-  '/practicar': typeof PracticarRoute
+  '/practicar': typeof PracticarRouteWithChildren
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/practicar/$songId': typeof PracticarSongIdRoute
+  '/practicar/': typeof PracticarIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -71,8 +88,16 @@ export interface FileRouteTypes {
     | '/configuracion'
     | '/practicar'
     | '/sitemap.xml'
+    | '/practicar/$songId'
+    | '/practicar/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/biblioteca' | '/configuracion' | '/practicar' | '/sitemap.xml'
+  to:
+    | '/'
+    | '/biblioteca'
+    | '/configuracion'
+    | '/sitemap.xml'
+    | '/practicar/$songId'
+    | '/practicar'
   id:
     | '__root__'
     | '/'
@@ -80,13 +105,15 @@ export interface FileRouteTypes {
     | '/configuracion'
     | '/practicar'
     | '/sitemap.xml'
+    | '/practicar/$songId'
+    | '/practicar/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BibliotecaRoute: typeof BibliotecaRoute
   ConfiguracionRoute: typeof ConfiguracionRoute
-  PracticarRoute: typeof PracticarRoute
+  PracticarRoute: typeof PracticarRouteWithChildren
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
 }
 
@@ -127,16 +154,54 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/practicar/': {
+      id: '/practicar/'
+      path: '/'
+      fullPath: '/practicar/'
+      preLoaderRoute: typeof PracticarIndexRouteImport
+      parentRoute: typeof PracticarRoute
+    }
+    '/practicar/$songId': {
+      id: '/practicar/$songId'
+      path: '/$songId'
+      fullPath: '/practicar/$songId'
+      preLoaderRoute: typeof PracticarSongIdRouteImport
+      parentRoute: typeof PracticarRoute
+    }
   }
 }
+
+interface PracticarRouteChildren {
+  PracticarSongIdRoute: typeof PracticarSongIdRoute
+  PracticarIndexRoute: typeof PracticarIndexRoute
+}
+
+const PracticarRouteChildren: PracticarRouteChildren = {
+  PracticarSongIdRoute: PracticarSongIdRoute,
+  PracticarIndexRoute: PracticarIndexRoute,
+}
+
+const PracticarRouteWithChildren = PracticarRoute._addFileChildren(
+  PracticarRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BibliotecaRoute: BibliotecaRoute,
   ConfiguracionRoute: ConfiguracionRoute,
-  PracticarRoute: PracticarRoute,
+  PracticarRoute: PracticarRouteWithChildren,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
