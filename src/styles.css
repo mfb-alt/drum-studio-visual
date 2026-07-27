@@ -65,6 +65,12 @@
   --color-pad-cymbal: var(--pad-cymbal);
   --color-pad-cymbal-inner: var(--pad-cymbal-inner);
   --color-pad-label: var(--pad-label);
+  --color-pad-rubber: var(--pad-rubber);
+  --color-pad-rubber-hi: var(--pad-rubber-hi);
+  --color-pad-hoop: var(--pad-hoop);
+  --color-metal: var(--metal);
+  --color-metal-hi: var(--metal-hi);
+  --color-metal-dark: var(--metal-dark);
   --color-stage: var(--stage);
   --shadow-pad: var(--pad-shadow);
   --shadow-stage: var(--stage-shadow);
