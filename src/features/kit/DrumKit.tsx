@@ -7,6 +7,11 @@ import type { PadId } from "./types";
 interface DrumKitProps {
   /** Pads to keep softly lit, e.g. upcoming-hit cues. Reserved for later. */
   highlightedPads?: PadId[];
+  /**
+   * Pads pulsed by an external driver (playback, MIDI in). The kit only
+   * receives pad ids — it knows nothing about where they come from.
+   */
+  litPads?: PadId[];
 }
 
 /**
@@ -14,7 +19,7 @@ interface DrumKitProps {
  * of the available width and is capped by the viewport height so the kit
  * grows on large screens and is never cropped on tablets.
  */
-export function DrumKit({ highlightedPads = [] }: DrumKitProps) {
+export function DrumKit({ highlightedPads = [], litPads = [] }: DrumKitProps) {
   const { activePads, trigger } = useKitTrigger();
 
   return (
@@ -37,7 +42,7 @@ export function DrumKit({ highlightedPads = [] }: DrumKitProps) {
           <DrumPad
             key={pad.id}
             pad={pad}
-            active={activePads.includes(pad.id)}
+            active={activePads.includes(pad.id) || litPads.includes(pad.id)}
             highlighted={highlightedPads.includes(pad.id)}
             onHit={trigger}
           />
