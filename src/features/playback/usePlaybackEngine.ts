@@ -1,10 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PadId } from "@/features/kit/types";
-import type { ParsedMidi } from "@/features/midi/types";
+import type { DrumEvent, MidiTempo, ParsedMidi } from "@/features/midi/types";
 import type { PlaybackSpeed, PlaybackStatus } from "@/features/songs/types";
 import { PlaybackEngine } from "./PlaybackEngine";
 
 const HIGHLIGHT_MS = 220;
+/** How many recent hits the debug panel keeps. */
+const DEBUG_LOG_SIZE = 12;
+
+export interface DebugHit {
+  id: number;
+  timeSec: number;
+  note: number;
+  padId: PadId;
+  index: number;
+}
 
 /**
  * Thin React adapter over PlaybackEngine. It translates timed MIDI events
@@ -17,7 +27,13 @@ export function usePlaybackEngine() {
   const [positionSec, setPositionSec] = useState(0);
   const [durationSec, setDurationSec] = useState(0);
   const [litPads, setLitPads] = useState<PadId[]>([]);
+  const [eventIndex, setEventIndex] = useState(-1);
+  const [totalEvents, setTotalEvents] = useState(0);
+  const [tempos, setTempos] = useState<MidiTempo[]>([]);
+  const [baseBpm, setBaseBpm] = useState(0);
+  const [recentHits, setRecentHits] = useState<DebugHit[]>([]);
   const timers = useRef(new Map<PadId, ReturnType<typeof setTimeout>>());
+  const hitId = useRef(0);
 
   const highlight = useCallback((padId: PadId) => {
     setLitPads((current) => (current.includes(padId) ? current : [...current, padId]));
@@ -34,8 +50,15 @@ export function usePlaybackEngine() {
 
   useEffect(() => {
     engine.setListeners({
-      onEvent: (event) => {
+      onEvent: (event: DrumEvent, index: number) => {
+        setEventIndex(index);
         if (event.padId) highlight(event.padId);
+        if (event.padId) {
+          const padId = event.padId;
+          hitId.current += 1;
+          const hit: DebugHit = { id: hitId.current, timeSec: event.timeSec, note: event.note, padId, index };
+          setRecentHits((current) => [hit, ...current].slice(0, DEBUG_LOG_SIZE));
+        }
       },
       onTick: (tick) => {
         setPositionSec(tick.positionSec);
@@ -56,6 +79,11 @@ export function usePlaybackEngine() {
       engine.load(midi.drumEvents, midi.durationSec);
       setDurationSec(midi.durationSec);
       setPositionSec(0);
+      setEventIndex(-1);
+      setTotalEvents(midi.drumEvents.length);
+      setTempos(midi.tempos);
+      setBaseBpm(midi.bpm);
+      setRecentHits([]);
     },
     [engine],
   );
@@ -68,12 +96,26 @@ export function usePlaybackEngine() {
     [engine],
   );
 
+  const bpm = useMemo(() => {
+    if (!tempos.length) return baseBpm;
+    let current = tempos[0].bpm;
+    for (const tempo of tempos) {
+      if (tempo.timeSec <= positionSec) current = tempo.bpm;
+      else break;
+    }
+    return Math.round(current);
+  }, [tempos, positionSec, baseBpm]);
+
   return {
     status,
     speed,
     positionSec,
     durationSec,
     litPads,
+    bpm,
+    eventIndex,
+    totalEvents,
+    recentHits,
     load,
     play: useCallback(() => engine.play(), [engine]),
     pause: useCallback(() => engine.pause(), [engine]),
