@@ -22,11 +22,10 @@ export function KitRack() {
         stroke="url(#tube)"
         strokeLinecap="round"
         fill="none"
-        vectorEffect="non-scaling-stroke"
-        strokeWidth={5}
+        strokeWidth={0.7}
       >
         {/* Curved main bar of the rack */}
-        <path d="M14 52 C 30 34, 70 34, 86 56" strokeWidth={7} />
+        <path d="M14 52 C 30 34, 70 34, 86 56" strokeWidth={0.9} />
         {/* Cymbal / pad boom arms */}
         <path d="M28 46 L 24 22" />
         <path d="M74 48 L 80 27" />
@@ -38,13 +37,13 @@ export function KitRack() {
         {/* Legs down to the floor */}
         <path d="M16 52 L 12 92" />
         <path d="M86 56 L 90 92" />
-        <path d="M50 44 L 50 74" strokeWidth={4} />
+        <path d="M50 44 L 50 74" strokeWidth={0.5} />
       </g>
 
       {/* Floor feet */}
       <g fill="var(--metal-dark)" opacity={0.9}>
-        <ellipse cx="12" cy="92" rx="4" ry="1.4" />
-        <ellipse cx="90" cy="92" rx="4" ry="1.4" />
+        <ellipse cx="12" cy="92" rx="2.4" ry="0.8" />
+        <ellipse cx="90" cy="92" rx="2.4" ry="0.8" />
       </g>
     </svg>
   );
