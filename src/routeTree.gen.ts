@@ -10,12 +10,18 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as PracticarRouteImport } from './routes/practicar'
+import { Route as ConfiguracionRouteImport } from './routes/configuracion'
 import { Route as BibliotecaRouteImport } from './routes/biblioteca'
 import { Route as IndexRouteImport } from './routes/index'
 
 const PracticarRoute = PracticarRouteImport.update({
   id: '/practicar',
   path: '/practicar',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfiguracionRoute = ConfiguracionRouteImport.update({
+  id: '/configuracion',
+  path: '/configuracion',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BibliotecaRoute = BibliotecaRouteImport.update({
@@ -32,30 +38,34 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/biblioteca': typeof BibliotecaRoute
+  '/configuracion': typeof ConfiguracionRoute
   '/practicar': typeof PracticarRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/biblioteca': typeof BibliotecaRoute
+  '/configuracion': typeof ConfiguracionRoute
   '/practicar': typeof PracticarRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/biblioteca': typeof BibliotecaRoute
+  '/configuracion': typeof ConfiguracionRoute
   '/practicar': typeof PracticarRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/biblioteca' | '/practicar'
+  fullPaths: '/' | '/biblioteca' | '/configuracion' | '/practicar'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/biblioteca' | '/practicar'
-  id: '__root__' | '/' | '/biblioteca' | '/practicar'
+  to: '/' | '/biblioteca' | '/configuracion' | '/practicar'
+  id: '__root__' | '/' | '/biblioteca' | '/configuracion' | '/practicar'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BibliotecaRoute: typeof BibliotecaRoute
+  ConfiguracionRoute: typeof ConfiguracionRoute
   PracticarRoute: typeof PracticarRoute
 }
 
@@ -66,6 +76,13 @@ declare module '@tanstack/react-router' {
       path: '/practicar'
       fullPath: '/practicar'
       preLoaderRoute: typeof PracticarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/configuracion': {
+      id: '/configuracion'
+      path: '/configuracion'
+      fullPath: '/configuracion'
+      preLoaderRoute: typeof ConfiguracionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/biblioteca': {
@@ -88,6 +105,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BibliotecaRoute: BibliotecaRoute,
+  ConfiguracionRoute: ConfiguracionRoute,
   PracticarRoute: PracticarRoute,
 }
 export const routeTree = rootRouteImport
