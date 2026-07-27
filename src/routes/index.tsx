@@ -23,8 +23,8 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   return (
-    <div className="space-y-8">
-      <h1 className="text-center text-3xl font-semibold tracking-tight text-foreground md:text-5xl">
+    <div className="space-y-4">
+      <h1 className="text-center text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
         Drum Studio
       </h1>
       <DrumKit />
