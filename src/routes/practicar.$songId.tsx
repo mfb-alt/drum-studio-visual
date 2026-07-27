@@ -5,6 +5,8 @@ import { DrumKit } from "@/features/kit/DrumKit";
 import { MidiImportButton } from "@/features/midi/MidiImportButton";
 import type { ParsedMidi } from "@/features/midi/types";
 import { TransportBar } from "@/features/playback/TransportBar";
+import { PlaybackStatusBar } from "@/features/playback/PlaybackStatusBar";
+import { MidiDebugPanel } from "@/features/playback/MidiDebugPanel";
 import { usePlaybackEngine } from "@/features/playback/usePlaybackEngine";
 import { DifficultyBadge } from "@/features/songs/components/DifficultyBadge";
 import { getSongById } from "@/features/songs/songsData";
@@ -83,6 +85,15 @@ function PracticeSessionPage() {
 
       <DrumKit litPads={playback.litPads} />
 
+      <PlaybackStatusBar
+        positionSec={playback.positionSec}
+        durationSec={playback.durationSec}
+        bpm={playback.bpm}
+        speed={playback.speed}
+        eventIndex={playback.eventIndex}
+        totalEvents={playback.totalEvents}
+      />
+
       <TransportBar
         disabled={!midi}
         speed={playback.speed}
@@ -92,6 +103,8 @@ function PracticeSessionPage() {
         onForward={() => playback.seek(playback.positionSec + 5)}
         onSpeedChange={playback.setSpeed}
       />
+
+      <MidiDebugPanel hits={playback.recentHits} litPads={playback.litPads} />
     </div>
   );
 }
