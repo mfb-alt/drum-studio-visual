@@ -1,7 +1,11 @@
+import { useState } from "react";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { ArrowLeft, Clock } from "lucide-react";
 import { DrumKit } from "@/features/kit/DrumKit";
+import { MidiImportButton } from "@/features/midi/MidiImportButton";
+import type { ParsedMidi } from "@/features/midi/types";
 import { TransportBar } from "@/features/playback/TransportBar";
+import { usePlaybackEngine } from "@/features/playback/usePlaybackEngine";
 import { DifficultyBadge } from "@/features/songs/components/DifficultyBadge";
 import { getSongById } from "@/features/songs/songsData";
 import { formatDuration } from "@/features/songs/types";
@@ -41,6 +45,8 @@ export const Route = createFileRoute("/practicar/$songId")({
 
 function PracticeSessionPage() {
   const { song } = Route.useLoaderData();
+  const [midi, setMidi] = useState<ParsedMidi | null>(null);
+  const playback = usePlaybackEngine();
 
   return (
     <div className="space-y-4">
@@ -60,9 +66,32 @@ function PracticeSessionPage() {
         </div>
       </header>
 
-      <DrumKit />
+      <div className="flex flex-wrap items-center gap-4">
+        <MidiImportButton
+          onLoaded={(parsed) => {
+            setMidi(parsed);
+            playback.load(parsed);
+          }}
+        />
+        {midi ? (
+          <p className="text-xs text-muted-foreground" role="status">
+            Archivo cargado correctamente · Duración {formatDuration(midi.durationSec)} · {midi.bpm} BPM ·{" "}
+            {midi.events.length} eventos
+          </p>
+        ) : null}
+      </div>
 
-      <TransportBar />
+      <DrumKit litPads={playback.litPads} />
+
+      <TransportBar
+        disabled={!midi}
+        speed={playback.speed}
+        onPlay={playback.play}
+        onPause={playback.pause}
+        onRewind={() => playback.seek(Math.max(0, playback.positionSec - 5))}
+        onForward={() => playback.seek(playback.positionSec + 5)}
+        onSpeedChange={playback.setSpeed}
+      />
     </div>
   );
 }
