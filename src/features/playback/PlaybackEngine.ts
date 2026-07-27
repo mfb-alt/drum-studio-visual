@@ -10,7 +10,7 @@ export interface PlaybackTick {
 
 export interface PlaybackEngineListeners {
   /** Fired once per note when the transport reaches it. */
-  onEvent?: (event: DrumEvent) => void;
+  onEvent?: (event: DrumEvent, index: number) => void;
   /** Fired on every frame with the transport position. */
   onTick?: (tick: PlaybackTick) => void;
   onStatusChange?: (status: PlaybackStatus) => void;
@@ -102,7 +102,7 @@ export class PlaybackEngine {
     this.positionSec = Math.min(this.positionSec + deltaSec, this.durationSec);
 
     while (this.cursor < this.events.length && this.events[this.cursor].timeSec <= this.positionSec) {
-      this.listeners.onEvent?.(this.events[this.cursor]);
+      this.listeners.onEvent?.(this.events[this.cursor], this.cursor);
       this.cursor += 1;
     }
 
