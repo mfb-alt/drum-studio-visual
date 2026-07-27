@@ -9,9 +9,15 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as PracticarRouteImport } from './routes/practicar'
 import { Route as BibliotecaRouteImport } from './routes/biblioteca'
 import { Route as IndexRouteImport } from './routes/index'
 
+const PracticarRoute = PracticarRouteImport.update({
+  id: '/practicar',
+  path: '/practicar',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BibliotecaRoute = BibliotecaRouteImport.update({
   id: '/biblioteca',
   path: '/biblioteca',
@@ -26,31 +32,42 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/biblioteca': typeof BibliotecaRoute
+  '/practicar': typeof PracticarRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/biblioteca': typeof BibliotecaRoute
+  '/practicar': typeof PracticarRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/biblioteca': typeof BibliotecaRoute
+  '/practicar': typeof PracticarRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/biblioteca'
+  fullPaths: '/' | '/biblioteca' | '/practicar'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/biblioteca'
-  id: '__root__' | '/' | '/biblioteca'
+  to: '/' | '/biblioteca' | '/practicar'
+  id: '__root__' | '/' | '/biblioteca' | '/practicar'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BibliotecaRoute: typeof BibliotecaRoute
+  PracticarRoute: typeof PracticarRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/practicar': {
+      id: '/practicar'
+      path: '/practicar'
+      fullPath: '/practicar'
+      preLoaderRoute: typeof PracticarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/biblioteca': {
       id: '/biblioteca'
       path: '/biblioteca'
@@ -71,6 +88,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BibliotecaRoute: BibliotecaRoute,
+  PracticarRoute: PracticarRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
