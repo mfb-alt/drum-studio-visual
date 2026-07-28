@@ -6,6 +6,13 @@ export interface PlaybackTick {
   durationSec: number;
   status: PlaybackStatus;
   speed: PlaybackSpeed;
+  /** Index of the bar the transport is currently inside. */
+  barIndex: number;
+  barCount: number;
+  canGoToStart: boolean;
+  canGoToEnd: boolean;
+  canStepBack: boolean;
+  canStepForward: boolean;
 }
 
 export interface PlaybackEngineListeners {
@@ -26,6 +33,7 @@ export class PlaybackEngine {
   private durationSec = 0;
   private positionSec = 0;
   private cursor = 0;
+  private bars: number[] = [0];
   private speed: PlaybackSpeed = 1;
   private status: PlaybackStatus = "idle";
   private rafId: number | null = null;
@@ -37,10 +45,11 @@ export class PlaybackEngine {
   }
 
   /** Loads a timeline of events; resets the transport. */
-  load(events: DrumEvent[], durationSec: number) {
+  load(events: DrumEvent[], durationSec: number, bars: number[] = [0]) {
     this.stop();
     this.events = [...events].sort((a, b) => a.timeSec - b.timeSec);
     this.durationSec = durationSec;
+    this.bars = bars.length ? [...bars].sort((a, b) => a - b) : [0];
     this.setStatus(this.events.length ? "idle" : "idle");
     this.emitTick();
   }
@@ -73,6 +82,46 @@ export class PlaybackEngine {
     this.cursor = this.events.findIndex((event) => event.timeSec >= this.positionSec);
     if (this.cursor < 0) this.cursor = this.events.length;
     this.emitTick();
+  }
+
+  /** Stops playback and returns the transport to 00:00. */
+  goToStart() {
+    this.cancelLoop();
+    this.setStatus("idle");
+    this.seek(0);
+  }
+
+  /** Stops playback and parks the transport at the end of the song. */
+  goToEnd() {
+    if (this.durationSec <= 0) return;
+    this.cancelLoop();
+    this.seek(this.durationSec);
+    this.setStatus("ended");
+    this.emitTick();
+  }
+
+  /** Moves back exactly one bar, using the loaded bar grid. */
+  previousBar() {
+    const index = this.currentBarIndex();
+    const start = this.bars[index] ?? 0;
+    // Within the first moments of a bar, jump to the previous one.
+    const target = this.positionSec - start > 0.12 ? start : (this.bars[index - 1] ?? 0);
+    this.seek(target);
+  }
+
+  /** Moves forward exactly one bar, using the loaded bar grid. */
+  nextBar() {
+    const next = this.bars[this.currentBarIndex() + 1];
+    this.seek(next ?? this.durationSec);
+  }
+
+  private currentBarIndex(): number {
+    let index = 0;
+    for (let i = 0; i < this.bars.length; i += 1) {
+      if (this.bars[i] <= this.positionSec + 1e-6) index = i;
+      else break;
+    }
+    return index;
   }
 
   /** Only the internal clock rate changes; the timeline stays untouched. */
@@ -123,11 +172,20 @@ export class PlaybackEngine {
   }
 
   private emitTick() {
+    const barIndex = this.currentBarIndex();
+    const atStart = this.positionSec <= 1e-3;
+    const atEnd = this.durationSec > 0 && this.positionSec >= this.durationSec - 1e-3;
     this.listeners.onTick?.({
       positionSec: this.positionSec,
       durationSec: this.durationSec,
       status: this.status,
       speed: this.speed,
+      barIndex,
+      barCount: this.bars.length,
+      canGoToStart: this.durationSec > 0 && !atStart,
+      canGoToEnd: this.durationSec > 0 && !atEnd,
+      canStepBack: this.durationSec > 0 && !atStart,
+      canStepForward: this.durationSec > 0 && !atEnd,
     });
   }
 
