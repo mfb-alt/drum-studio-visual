@@ -12,6 +12,8 @@ export interface DrumEvent {
   velocity: number;
   /** Track index the note came from. */
   track: number;
+  /** MIDI channel index (0-based). Percussion is 9 = channel 10. */
+  channel: number;
 }
 
 export interface MidiTempo {
@@ -48,4 +50,10 @@ export interface ParsedMidi {
   events: DrumEvent[];
   /** Events that map to a pad of the kit, sorted by time. */
   drumEvents: DrumEvent[];
+  /** True when notes were found on the GM percussion channel (10). */
+  drumTrackDetected: boolean;
+  /** Channel index used as percussion source, or null when none. */
+  drumChannel: number | null;
+  /** Track indices that contain the selected percussion events. */
+  drumTrackIndices: number[];
 }
