@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PadId } from "@/features/kit/types";
+import { triggerDrumPad } from "@/features/kit/triggerDrumPad";
 import type { DrumEvent, MidiTempo, ParsedMidi } from "@/features/midi/types";
 import type { PlaybackSpeed, PlaybackStatus } from "@/features/songs/types";
 import { PlaybackEngine } from "./PlaybackEngine";
@@ -52,9 +53,10 @@ export function usePlaybackEngine() {
     engine.setListeners({
       onEvent: (event: DrumEvent, index: number) => {
         setEventIndex(index);
-        if (event.padId) highlight(event.padId);
         if (event.padId) {
           const padId = event.padId;
+          triggerDrumPad(padId, event.velocity > 0 ? event.velocity : 1);
+          highlight(padId);
           hitId.current += 1;
           const hit: DebugHit = { id: hitId.current, timeSec: event.timeSec, note: event.note, padId, index };
           setRecentHits((current) => [hit, ...current].slice(0, DEBUG_LOG_SIZE));
