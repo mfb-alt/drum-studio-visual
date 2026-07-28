@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Pause, Play, SkipBack, SkipForward } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { PLAYBACK_SPEEDS, type PlaybackSpeed } from "@/features/songs/types";
@@ -8,10 +8,16 @@ interface TransportBarProps {
   /** Disabled until a timeline is loaded. */
   disabled?: boolean;
   speed?: PlaybackSpeed;
+  canGoToStart?: boolean;
+  canGoToEnd?: boolean;
+  canStepBack?: boolean;
+  canStepForward?: boolean;
   onPlay?: () => void;
   onPause?: () => void;
-  onRewind?: () => void;
-  onForward?: () => void;
+  onGoToStart?: () => void;
+  onGoToEnd?: () => void;
+  onPreviousBar?: () => void;
+  onNextBar?: () => void;
   onSpeedChange?: (speed: PlaybackSpeed) => void;
 }
 
@@ -19,17 +25,30 @@ interface TransportBarProps {
 export function TransportBar({
   disabled = true,
   speed = 1,
+  canGoToStart = false,
+  canGoToEnd = false,
+  canStepBack = false,
+  canStepForward = false,
   onPlay,
   onPause,
-  onRewind,
-  onForward,
+  onGoToStart,
+  onGoToEnd,
+  onPreviousBar,
+  onNextBar,
   onSpeedChange,
 }: TransportBarProps) {
   return (
     <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 rounded-2xl border border-border bg-card/60 px-5 py-3">
       <div className="flex items-center gap-2">
-        <TransportButton label="Retroceder" disabled={disabled} onClick={onRewind}>
+        <TransportButton label="Ir al inicio" disabled={disabled || !canGoToStart} onClick={onGoToStart}>
           <SkipBack className="h-4 w-4" aria-hidden />
+        </TransportButton>
+        <TransportButton
+          label="Retroceder un compás"
+          disabled={disabled || !canStepBack}
+          onClick={onPreviousBar}
+        >
+          <ChevronLeft className="h-4 w-4" aria-hidden />
         </TransportButton>
         <TransportButton label="Reproducir" disabled={disabled} onClick={onPlay}>
           <Play className="h-4 w-4" aria-hidden />
@@ -37,7 +56,14 @@ export function TransportBar({
         <TransportButton label="Pausa" disabled={disabled} onClick={onPause}>
           <Pause className="h-4 w-4" aria-hidden />
         </TransportButton>
-        <TransportButton label="Avanzar" disabled={disabled} onClick={onForward}>
+        <TransportButton
+          label="Avanzar un compás"
+          disabled={disabled || !canStepForward}
+          onClick={onNextBar}
+        >
+          <ChevronRight className="h-4 w-4" aria-hidden />
+        </TransportButton>
+        <TransportButton label="Ir al final" disabled={disabled || !canGoToEnd} onClick={onGoToEnd}>
           <SkipForward className="h-4 w-4" aria-hidden />
         </TransportButton>
       </div>
