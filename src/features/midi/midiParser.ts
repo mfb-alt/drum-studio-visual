@@ -2,6 +2,9 @@ import { Midi } from "@tonejs/midi";
 import { DrumMapper, defaultDrumMapper } from "./drumMapper";
 import type { DrumEvent, ParsedMidi } from "./types";
 
+/** General MIDI percussion channel (channel 10, 0-based index 9). */
+export const GM_DRUM_CHANNEL = 9;
+
 /**
  * Reads .mid/.midi files and returns a clean, UI-agnostic structure.
  * Nothing from @tonejs/midi escapes this module.
@@ -26,6 +29,7 @@ export class MidiParser {
           padId: this.mapper.toPad(note.midi),
           velocity: note.velocity,
           track: index,
+          channel: track.channel,
         });
       });
     });
@@ -49,6 +53,11 @@ export class MidiParser {
     const secondsPerMeasure = secondsPerBeat * numerator * (4 / denominator);
     const measures = secondsPerMeasure > 0 ? Math.ceil(durationSec / secondsPerMeasure) : 0;
 
+    const drumEvents = events.filter(
+      (event) => event.channel === GM_DRUM_CHANNEL && event.padId !== null,
+    );
+    const drumTrackDetected = drumEvents.length > 0;
+
     return {
       fileName,
       durationSec,
@@ -64,9 +73,28 @@ export class MidiParser {
         isDrumTrack: track.channel === 9,
       })),
       events,
-      drumEvents: events.filter((event) => event.padId !== null),
+      drumEvents,
+      drumTrackDetected,
+      drumChannel: drumTrackDetected ? GM_DRUM_CHANNEL : null,
+      drumTrackIndices: [...new Set(drumEvents.map((event) => event.track))],
     };
   }
 }
 
 export const midiParser = new MidiParser();
+
+/**
+ * Fallback for files that do not flag the percussion channel: rebuild the
+ * drum timeline from a manually chosen track.
+ */
+export function withManualDrumTrack(midi: ParsedMidi, trackIndex: number): ParsedMidi {
+  const drumEvents = midi.events.filter((event) => event.track === trackIndex && event.padId !== null);
+  const channel = midi.tracks.find((track) => track.index === trackIndex)?.channel ?? null;
+  return {
+    ...midi,
+    drumEvents,
+    drumTrackDetected: false,
+    drumChannel: channel,
+    drumTrackIndices: [trackIndex],
+  };
+}

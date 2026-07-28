@@ -3,6 +3,7 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { ArrowLeft, Clock } from "lucide-react";
 import { DrumKit } from "@/features/kit/DrumKit";
 import { MidiImportButton } from "@/features/midi/MidiImportButton";
+import { withManualDrumTrack } from "@/features/midi/midiParser";
 import type { ParsedMidi } from "@/features/midi/types";
 import { TransportBar } from "@/features/playback/TransportBar";
 import { PlaybackStatusBar } from "@/features/playback/PlaybackStatusBar";
@@ -50,6 +51,11 @@ function PracticeSessionPage() {
   const [midi, setMidi] = useState<ParsedMidi | null>(null);
   const playback = usePlaybackEngine();
 
+  const applyMidi = (parsed: ParsedMidi) => {
+    setMidi(parsed);
+    playback.load(parsed);
+  };
+
   return (
     <div className="space-y-4">
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 sm:flex sm:flex-wrap sm:justify-between">
@@ -68,18 +74,53 @@ function PracticeSessionPage() {
         </div>
       </header>
 
-      <div className="flex flex-wrap items-center gap-4">
-        <MidiImportButton
-          onLoaded={(parsed) => {
-            setMidi(parsed);
-            playback.load(parsed);
-          }}
-        />
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-4">
+          <MidiImportButton onLoaded={applyMidi} />
+          {midi ? (
+            <p className="text-xs text-muted-foreground" role="status">
+              Archivo cargado · Duración {formatDuration(midi.durationSec)} · {midi.bpm} BPM ·{" "}
+              {midi.tracks.length} pistas · {midi.drumEvents.length} eventos de batería ·{" "}
+              {midi.drumChannel !== null ? `canal de batería ${midi.drumChannel + 1}` : "sin canal de batería"}
+            </p>
+          ) : null}
+        </div>
+
         {midi ? (
-          <p className="text-xs text-muted-foreground" role="status">
-            Archivo cargado correctamente · Duración {formatDuration(midi.durationSec)} · {midi.bpm} BPM ·{" "}
-            {midi.events.length} eventos
+          <p className="text-[11px] text-muted-foreground">
+            Pistas detectadas:{" "}
+            {midi.tracks
+              .map((track) => `${track.name} (canal ${track.channel + 1}, ${track.noteCount} notas)`)
+              .join(" · ")}
           </p>
+        ) : null}
+
+        {midi && !midi.drumTrackDetected ? (
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card/40 px-3 py-2">
+            <p className="text-xs text-muted-foreground">
+              No se ha detectado automáticamente una pista de batería
+            </p>
+            <label className="text-xs text-muted-foreground" htmlFor="drum-track">
+              Elegir pista:
+            </label>
+            <select
+              id="drum-track"
+              className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
+              value={midi.drumTrackIndices[0] ?? ""}
+              onChange={(event) => {
+                const index = Number(event.target.value);
+                if (Number.isNaN(index)) return;
+                applyMidi(withManualDrumTrack(midi, index));
+              }}
+            >
+              <option value="">Selecciona una pista</option>
+              {midi.tracks.map((track) => (
+                <option key={track.index} value={track.index}>
+                  {track.name} · canal {track.channel + 1} · {track.noteCount} notas
+                </option>
+              ))}
+            </select>
+          </div>
         ) : null}
       </div>
 

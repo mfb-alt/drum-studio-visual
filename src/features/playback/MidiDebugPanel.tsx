@@ -48,7 +48,7 @@ export function MidiDebugPanel({ hits, litPads }: MidiDebugPanelProps) {
                   key={hit.id}
                   className="rounded-md bg-accent/15 px-2 py-0.5 text-xs text-accent"
                 >
-                  MIDI {hit.note} · {PAD_LABELS[hit.padId] ?? hit.padId.toUpperCase()}
+                  Canal {hit.channel + 1} · MIDI {hit.note} · {PAD_LABELS[hit.padId] ?? hit.padId.toUpperCase()}
                 </span>
               ))
             ) : (
@@ -67,6 +67,7 @@ export function MidiDebugPanel({ hits, litPads }: MidiDebugPanelProps) {
             {hits.map((hit) => (
               <li key={hit.id} className="flex gap-3">
                 <span className="tabular-nums">{formatPreciseTime(hit.timeSec)}</span>
+                <span className="w-16">Canal {hit.channel + 1}</span>
                 <span className="w-16">MIDI {hit.note}</span>
                 <span className="text-foreground">{PAD_LABELS[hit.padId] ?? hit.padId.toUpperCase()}</span>
               </li>

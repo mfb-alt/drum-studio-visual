@@ -15,6 +15,7 @@ export interface DebugHit {
   note: number;
   padId: PadId;
   index: number;
+  channel: number;
 }
 
 /**
@@ -58,7 +59,14 @@ export function usePlaybackEngine() {
           triggerDrumPad(padId, event.velocity > 0 ? event.velocity : 1);
           highlight(padId);
           hitId.current += 1;
-          const hit: DebugHit = { id: hitId.current, timeSec: event.timeSec, note: event.note, padId, index };
+          const hit: DebugHit = {
+            id: hitId.current,
+            timeSec: event.timeSec,
+            note: event.note,
+            padId,
+            index,
+            channel: event.channel,
+          };
           setRecentHits((current) => [hit, ...current].slice(0, DEBUG_LOG_SIZE));
         }
       },
