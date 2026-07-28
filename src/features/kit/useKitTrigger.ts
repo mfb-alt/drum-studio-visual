@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { playPad } from "@/features/audio/audioEngine";
 import { TD1KV_PADS } from "./kitConfig";
+import { triggerDrumPad } from "./triggerDrumPad";
 import type { PadDefinition, PadId } from "./types";
 
 const FLASH_MS = 180;
@@ -10,7 +10,7 @@ export function useKitTrigger() {
   const timers = useRef(new Map<PadId, ReturnType<typeof setTimeout>>());
 
   const trigger = useCallback((pad: PadDefinition) => {
-    playPad(pad.id);
+    triggerDrumPad(pad.id);
     setActivePads((current) => (current.includes(pad.id) ? current : [...current, pad.id]));
 
     const existing = timers.current.get(pad.id);
