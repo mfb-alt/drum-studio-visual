@@ -4,6 +4,7 @@ import { triggerDrumPad } from "@/features/kit/triggerDrumPad";
 import type { DrumEvent, MidiTempo, ParsedMidi } from "@/features/midi/types";
 import type { PlaybackSpeed, PlaybackStatus } from "@/features/songs/types";
 import { PlaybackEngine } from "./PlaybackEngine";
+import { buildBarGrid } from "./barGrid";
 
 const HIGHLIGHT_MS = 220;
 /** How many recent hits the debug panel keeps. */
@@ -34,6 +35,14 @@ export function usePlaybackEngine() {
   const [tempos, setTempos] = useState<MidiTempo[]>([]);
   const [baseBpm, setBaseBpm] = useState(0);
   const [recentHits, setRecentHits] = useState<DebugHit[]>([]);
+  const [barIndex, setBarIndex] = useState(0);
+  const [barCount, setBarCount] = useState(1);
+  const [nav, setNav] = useState({
+    canGoToStart: false,
+    canGoToEnd: false,
+    canStepBack: false,
+    canStepForward: false,
+  });
   const timers = useRef(new Map<PadId, ReturnType<typeof setTimeout>>());
   const hitId = useRef(0);
 
@@ -73,6 +82,14 @@ export function usePlaybackEngine() {
       onTick: (tick) => {
         setPositionSec(tick.positionSec);
         setDurationSec(tick.durationSec);
+        setBarIndex(tick.barIndex);
+        setBarCount(tick.barCount);
+        setNav({
+          canGoToStart: tick.canGoToStart,
+          canGoToEnd: tick.canGoToEnd,
+          canStepBack: tick.canStepBack,
+          canStepForward: tick.canStepForward,
+        });
       },
       onStatusChange: setStatus,
     });
@@ -86,7 +103,13 @@ export function usePlaybackEngine() {
 
   const load = useCallback(
     (midi: ParsedMidi) => {
-      engine.load(midi.drumEvents, midi.durationSec);
+      const bars = buildBarGrid({
+        tempos: midi.tempos,
+        timeSignatures: midi.timeSignatures,
+        durationSec: midi.durationSec,
+        fallbackBpm: midi.bpm,
+      });
+      engine.load(midi.drumEvents, midi.durationSec, bars);
       setDurationSec(midi.durationSec);
       setPositionSec(0);
       setEventIndex(-1);
@@ -126,11 +149,18 @@ export function usePlaybackEngine() {
     eventIndex,
     totalEvents,
     recentHits,
+    barIndex,
+    barCount,
+    ...nav,
     load,
     play: useCallback(() => engine.play(), [engine]),
     pause: useCallback(() => engine.pause(), [engine]),
     stop: useCallback(() => engine.stop(), [engine]),
     seek: useCallback((value: number) => engine.seek(value), [engine]),
+    goToStart: useCallback(() => engine.goToStart(), [engine]),
+    goToEnd: useCallback(() => engine.goToEnd(), [engine]),
+    previousBar: useCallback(() => engine.previousBar(), [engine]),
+    nextBar: useCallback(() => engine.nextBar(), [engine]),
     setSpeed,
   };
 }
