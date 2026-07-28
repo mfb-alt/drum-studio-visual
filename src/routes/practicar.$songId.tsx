@@ -138,10 +138,16 @@ function PracticeSessionPage() {
       <TransportBar
         disabled={!midi}
         speed={playback.speed}
+        canGoToStart={playback.canGoToStart}
+        canGoToEnd={playback.canGoToEnd}
+        canStepBack={playback.canStepBack}
+        canStepForward={playback.canStepForward}
         onPlay={playback.play}
         onPause={playback.pause}
-        onRewind={() => playback.seek(Math.max(0, playback.positionSec - 5))}
-        onForward={() => playback.seek(playback.positionSec + 5)}
+        onGoToStart={playback.goToStart}
+        onGoToEnd={playback.goToEnd}
+        onPreviousBar={playback.previousBar}
+        onNextBar={playback.nextBar}
         onSpeedChange={playback.setSpeed}
       />
 
