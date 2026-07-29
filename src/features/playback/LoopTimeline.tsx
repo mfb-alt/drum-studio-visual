@@ -74,7 +74,7 @@ export function LoopTimeline({
   const progress = pct(positionSec);
   const startPct = pct(loop.startTime);
   const endPct = pct(loop.endTime);
-  const hasRange = durationSec > 0 && loop.endTime > loop.startTime;
+  const hasRange = loop.enabled && durationSec > 0 && loop.endTime > loop.startTime;
 
   return (
     <div

@@ -77,81 +77,87 @@ export function LoopControls({
           />
         </label>
 
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          disabled={disabled}
-          className="h-8 gap-1.5 rounded-full px-3 text-xs"
-          onClick={() =>
-            onRangeChange?.({
-              startTime: positionSec,
-              endTime: Math.max(loop.endTime, positionSec),
-              snap: snapToBars,
-            })
-          }
-        >
-          <Flag className="h-3.5 w-3.5" aria-hidden />
-          Marcar inicio aquí
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          disabled={disabled}
-          className="h-8 gap-1.5 rounded-full px-3 text-xs"
-          onClick={() =>
-            onRangeChange?.({
-              startTime: Math.min(loop.startTime, positionSec),
-              endTime: positionSec,
-              snap: snapToBars,
-            })
-          }
-        >
-          <FlagOff className="h-3.5 w-3.5" aria-hidden />
-          Marcar final aquí
-        </Button>
-
-        <label className="flex items-center gap-2 text-xs text-muted-foreground">
-          Ajustar a compases
-          <Switch
-            checked={snapToBars}
-            disabled={disabled}
-            onCheckedChange={(value) => {
-              onSnapChange?.(value);
-              if (value && hasSelection) {
-                onRangeChange?.({ startTime: loop.startTime, endTime: loop.endTime, snap: true });
+        {loop.enabled ? (
+          <>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={disabled}
+              className="h-8 gap-1.5 rounded-full px-3 text-xs"
+              onClick={() =>
+                onRangeChange?.({
+                  startTime: positionSec,
+                  endTime: Math.max(loop.endTime, positionSec),
+                  snap: snapToBars,
+                })
               }
-            }}
-            aria-label="Ajustar a compases"
-          />
-        </label>
+            >
+              <Flag className="h-3.5 w-3.5" aria-hidden />
+              Marcar inicio aquí
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={disabled}
+              className="h-8 gap-1.5 rounded-full px-3 text-xs"
+              onClick={() =>
+                onRangeChange?.({
+                  startTime: Math.min(loop.startTime, positionSec),
+                  endTime: positionSec,
+                  snap: snapToBars,
+                })
+              }
+            >
+              <FlagOff className="h-3.5 w-3.5" aria-hidden />
+              Marcar final aquí
+            </Button>
 
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => setPrecise((value) => !value)}
-          className="ml-auto flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          aria-expanded={precise}
-        >
-          Ajuste preciso
-          <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", precise && "rotate-180")} aria-hidden />
-        </button>
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              Ajustar a compases
+              <Switch
+                checked={snapToBars}
+                disabled={disabled}
+                onCheckedChange={(value) => {
+                  onSnapChange?.(value);
+                  if (value && hasSelection) {
+                    onRangeChange?.({ startTime: loop.startTime, endTime: loop.endTime, snap: true });
+                  }
+                }}
+                aria-label="Ajustar a compases"
+              />
+            </label>
+
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => setPrecise((value) => !value)}
+              className="ml-auto flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+              aria-expanded={precise}
+            >
+              Ajuste preciso
+              <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", precise && "rotate-180")} aria-hidden />
+            </button>
+          </>
+        ) : null}
       </div>
 
-      <p className="flex flex-wrap items-center gap-x-4 font-mono text-xs text-muted-foreground">
-        <span className="text-accent">
-          {formatPreciseTime(loop.startTime)} → {formatPreciseTime(loop.endTime)}
-        </span>
-        {hasBarGrid && loop.barAligned !== false ? (
-          <span>
-            Compases {loop.startMeasure}–{loop.endMeasure}
+      {loop.enabled ? (
+        <p className="flex flex-wrap items-center gap-x-4 font-mono text-xs text-muted-foreground">
+          <span className="text-accent">
+            {formatPreciseTime(loop.startTime)} → {formatPreciseTime(loop.endTime)}
           </span>
-        ) : null}
-        <span>Duración: {lengthSec.toFixed(3)} s</span>
-      </p>
+          {hasBarGrid && loop.barAligned !== false ? (
+            <span>
+              Compases {loop.startMeasure}–{loop.endMeasure}
+            </span>
+          ) : null}
+          <span>Duración: {lengthSec.toFixed(3)} s</span>
+        </p>
+      ) : null}
 
-      {precise ? (
+      {loop.enabled && precise ? (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-2">
           <MeasureField
             id="loop-start"
