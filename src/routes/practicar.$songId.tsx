@@ -125,7 +125,21 @@ function PracticeSessionPage() {
         ) : null}
       </div>
 
-      <DrumKit litPads={playback.litPads} />
+      <div className="relative">
+        <DrumKit litPads={playback.litPads} />
+        {playback.countIn ? (
+          <div
+            className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center rounded-2xl bg-background/45 backdrop-blur-[1px]"
+            role="status"
+            aria-live="assertive"
+            aria-label={`Cuenta atrás: compás ${playback.countIn.bar}, tiempo ${playback.countIn.beat}`}
+          >
+            <div className="flex h-24 w-24 items-center justify-center rounded-full border border-accent/60 bg-card/90 font-mono text-6xl font-semibold tabular-nums text-accent shadow-xl">
+              {playback.countIn.beat}
+            </div>
+          </div>
+        ) : null}
+      </div>
 
       <PlaybackStatusBar
         positionSec={playback.positionSec}
@@ -137,6 +151,7 @@ function PracticeSessionPage() {
         loop={playback.loop}
         disabled={!midi}
         onSeek={playback.seek}
+        musicalPositionAt={playback.musicalPositionAt}
         onLoopRange={(range, committed) =>
           playback.setLoopRange({
             startTime: range.startTime,
@@ -162,6 +177,7 @@ function PracticeSessionPage() {
       <TransportBar
         disabled={!midi}
         speed={playback.speed}
+        countInBars={playback.countInBars}
         canGoToStart={playback.canGoToStart}
         canGoToEnd={playback.canGoToEnd}
         canStepBack={playback.canStepBack}
@@ -173,6 +189,7 @@ function PracticeSessionPage() {
         onPreviousBar={playback.previousBar}
         onNextBar={playback.nextBar}
         onSpeedChange={playback.setSpeed}
+        onCountInChange={playback.setCountInBars}
       />
 
       <MidiDebugPanel hits={playback.recentHits} litPads={playback.litPads} />

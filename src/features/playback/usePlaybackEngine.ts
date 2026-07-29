@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PadId } from "@/features/kit/types";
 import { triggerDrumPad } from "@/features/kit/triggerDrumPad";
-import { stopAllVoices } from "@/features/audio/audioEngine";
+import { playMetronomeClick, stopAllVoices } from "@/features/audio/audioEngine";
 import type { DrumEvent, MidiTempo, ParsedMidi } from "@/features/midi/types";
 import type { PlaybackSpeed, PlaybackStatus } from "@/features/songs/types";
-import { PlaybackEngine, type LoopState } from "./PlaybackEngine";
+import {
+  PlaybackEngine,
+  type CountInBars,
+  type CountInPlan,
+  type LoopState,
+} from "./PlaybackEngine";
 import { buildBarGrid, buildBeatGrid } from "./barGrid";
 
 const HIGHLIGHT_MS = 220;
@@ -40,6 +45,8 @@ export function usePlaybackEngine() {
   const [barCount, setBarCount] = useState(1);
   const [hasBarGrid, setHasBarGrid] = useState(false);
   const [snapToBars, setSnapToBars] = useState(true);
+  const [countInBars, setCountInBarsState] = useState<CountInBars>(1);
+  const [countIn, setCountIn] = useState<CountInPlan | null>(null);
   const [loop, setLoopState] = useState<LoopState>({
     enabled: false,
     startMeasure: 1,
@@ -54,7 +61,56 @@ export function usePlaybackEngine() {
     canStepForward: false,
   });
   const timers = useRef(new Map<PadId, ReturnType<typeof setTimeout>>());
+  const countInTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countInGeneration = useRef(0);
+  const countInBarsRef = useRef<CountInBars>(countInBars);
+  const startCountInRef = useRef<(positionSec?: number) => boolean>(() => false);
   const hitId = useRef(0);
+  countInBarsRef.current = countInBars;
+
+  const cancelCountIn = useCallback(() => {
+    countInGeneration.current += 1;
+    if (countInTimer.current) clearTimeout(countInTimer.current);
+    countInTimer.current = null;
+    setCountIn(null);
+  }, []);
+
+  const startCountIn = useCallback(
+    (positionSec?: number) => {
+      const bars = countInBarsRef.current;
+      if (!bars) return false;
+      cancelCountIn();
+      const plan = engine.countInPlan(bars, positionSec);
+      if (!plan.length) return false;
+
+      const generation = countInGeneration.current;
+      let deadline = performance.now();
+      const runBeat = (index: number) => {
+        if (generation !== countInGeneration.current) return;
+        const step = plan[index];
+        setCountIn(step);
+        playMetronomeClick(step.beat === 1);
+        deadline += step.durationMs;
+        countInTimer.current = setTimeout(
+          () => {
+            if (generation !== countInGeneration.current) return;
+            if (index + 1 < plan.length) {
+              runBeat(index + 1);
+              return;
+            }
+            countInTimer.current = null;
+            setCountIn(null);
+            engine.play();
+          },
+          Math.max(0, deadline - performance.now()),
+        );
+      };
+      runBeat(0);
+      return true;
+    },
+    [cancelCountIn, engine],
+  );
+  startCountInRef.current = startCountIn;
 
   const highlight = useCallback((padId: PadId) => {
     setLitPads((current) => (current.includes(padId) ? current : [...current, padId]));
@@ -106,10 +162,14 @@ export function usePlaybackEngine() {
       onLoopRestart: () => {
         // Silence the previous cycle so nothing bleeds over the restart.
         stopAllVoices();
+        return startCountInRef.current(engine.getLoop().startTime) ? false : true;
       },
     });
-    return () => engine.dispose();
-  }, [engine, highlight]);
+    return () => {
+      cancelCountIn();
+      engine.dispose();
+    };
+  }, [cancelCountIn, engine, highlight]);
 
   useEffect(() => {
     const pending = timers.current;
@@ -118,6 +178,7 @@ export function usePlaybackEngine() {
 
   const load = useCallback(
     (midi: ParsedMidi) => {
+      cancelCountIn();
       const gridInput = {
         tempos: midi.tempos,
         timeSignatures: midi.timeSignatures,
@@ -136,28 +197,31 @@ export function usePlaybackEngine() {
       setBaseBpm(midi.bpm);
       setRecentHits([]);
     },
-    [engine],
+    [cancelCountIn, engine],
   );
 
   const setSpeed = useCallback(
     (value: PlaybackSpeed) => {
+      cancelCountIn();
       engine.setSpeed(value);
       setSpeedState(value);
     },
-    [engine],
+    [cancelCountIn, engine],
   );
 
   const setLoop = useCallback(
     (next: { enabled: boolean; startMeasure: number; endMeasure: number }) => {
+      cancelCountIn();
       engine.setLoop(next);
       setLoopState(engine.getLoop());
     },
-    [engine],
+    [cancelCountIn, engine],
   );
 
   /** Time-based loop edit used by the visual selector and the mark buttons. */
   const setLoopRange = useCallback(
     (next: { startTime: number; endTime: number; enabled?: boolean; snap?: boolean }) => {
+      cancelCountIn();
       engine.setLoopTime({
         enabled: next.enabled ?? engine.getLoop().enabled,
         startTime: next.startTime,
@@ -166,7 +230,7 @@ export function usePlaybackEngine() {
       });
       setLoopState(engine.getLoop());
     },
-    [engine],
+    [cancelCountIn, engine],
   );
 
   const bpm = useMemo(() => {
@@ -195,16 +259,63 @@ export function usePlaybackEngine() {
     hasBarGrid,
     snapToBars,
     setSnapToBars,
+    countInBars,
+    countIn,
+    setCountInBars: useCallback(
+      (value: CountInBars) => {
+        cancelCountIn();
+        countInBarsRef.current = value;
+        setCountInBarsState(value);
+      },
+      [cancelCountIn],
+    ),
     ...nav,
     load,
-    play: useCallback(() => engine.play(), [engine]),
-    pause: useCallback(() => engine.pause(), [engine]),
-    stop: useCallback(() => engine.stop(), [engine]),
-    seek: useCallback((value: number) => engine.seek(value), [engine]),
-    goToStart: useCallback(() => engine.goToStart(), [engine]),
-    goToEnd: useCallback(() => engine.goToEnd(), [engine]),
-    previousBar: useCallback(() => engine.previousBar(), [engine]),
-    nextBar: useCallback(() => engine.nextBar(), [engine]),
+    play: useCallback(() => {
+      if (engine.getStatus() === "playing" || countInTimer.current) return;
+      const currentLoop = engine.getLoop();
+      const outsideLoop =
+        currentLoop.enabled &&
+        (positionSec < currentLoop.startTime - 1e-6 || positionSec >= currentLoop.endTime - 1e-6);
+      const target = outsideLoop
+        ? currentLoop.startTime
+        : engine.getStatus() === "ended"
+          ? 0
+          : positionSec;
+      if (!startCountIn(target)) engine.play();
+    }, [engine, positionSec, startCountIn]),
+    pause: useCallback(() => {
+      cancelCountIn();
+      engine.pause();
+    }, [cancelCountIn, engine]),
+    stop: useCallback(() => {
+      cancelCountIn();
+      engine.stop();
+    }, [cancelCountIn, engine]),
+    seek: useCallback(
+      (value: number) => {
+        cancelCountIn();
+        engine.seek(value);
+      },
+      [cancelCountIn, engine],
+    ),
+    musicalPositionAt: useCallback((value: number) => engine.musicalPositionAt(value), [engine]),
+    goToStart: useCallback(() => {
+      cancelCountIn();
+      engine.goToStart();
+    }, [cancelCountIn, engine]),
+    goToEnd: useCallback(() => {
+      cancelCountIn();
+      engine.goToEnd();
+    }, [cancelCountIn, engine]),
+    previousBar: useCallback(() => {
+      cancelCountIn();
+      engine.previousBar();
+    }, [cancelCountIn, engine]),
+    nextBar: useCallback(() => {
+      cancelCountIn();
+      engine.nextBar();
+    }, [cancelCountIn, engine]),
     setSpeed,
     setLoop,
     setLoopRange,

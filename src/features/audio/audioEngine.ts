@@ -35,6 +35,21 @@ export function setMasterVolume(value: number) {
   if (audio && master) master.gain.value = Math.min(1, Math.max(0, value));
 }
 
+/** Short synthesized metronome click used by the practice count-in. */
+export function playMetronomeClick(accent = false) {
+  const audio = getContext();
+  if (!audio || !master) return;
+  const now = audio.currentTime;
+  const osc = audio.createOscillator();
+  const gain = audio.createGain();
+  osc.frequency.value = accent ? 1320 : 880;
+  gain.gain.setValueAtTime(accent ? 0.22 : 0.14, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+  osc.connect(gain).connect(master);
+  osc.start(now);
+  osc.stop(now + 0.065);
+}
+
 /** Stops every sounding voice with a tiny fade to avoid clicks. */
 export function stopAllVoices() {
   const audio = ctx;

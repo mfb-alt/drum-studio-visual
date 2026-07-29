@@ -3,11 +3,13 @@ import { ChevronLeft, ChevronRight, Pause, Play, SkipBack, SkipForward } from "l
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { PLAYBACK_SPEEDS, type PlaybackSpeed } from "@/features/songs/types";
+import type { CountInBars } from "./PlaybackEngine";
 
 interface TransportBarProps {
   /** Disabled until a timeline is loaded. */
   disabled?: boolean;
   speed?: PlaybackSpeed;
+  countInBars?: CountInBars;
   canGoToStart?: boolean;
   canGoToEnd?: boolean;
   canStepBack?: boolean;
@@ -19,12 +21,14 @@ interface TransportBarProps {
   onPreviousBar?: () => void;
   onNextBar?: () => void;
   onSpeedChange?: (speed: PlaybackSpeed) => void;
+  onCountInChange?: (bars: CountInBars) => void;
 }
 
 /** Presentational transport bar; all timing lives in PlaybackEngine. */
 export function TransportBar({
   disabled = true,
   speed = 1,
+  countInBars = 1,
   canGoToStart = false,
   canGoToEnd = false,
   canStepBack = false,
@@ -36,6 +40,7 @@ export function TransportBar({
   onPreviousBar,
   onNextBar,
   onSpeedChange,
+  onCountInChange,
 }: TransportBarProps) {
   return (
     <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 rounded-2xl border border-border bg-card/60 px-5 py-3">
@@ -90,6 +95,20 @@ export function TransportBar({
           ))}
         </div>
       </div>
+
+      <label className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
+        Cuenta atrás
+        <select
+          value={countInBars}
+          disabled={disabled}
+          onChange={(event) => onCountInChange?.(Number(event.target.value) as CountInBars)}
+          className="h-8 rounded-md border border-border bg-background px-2 text-xs normal-case text-foreground"
+        >
+          <option value={0}>Desactivada</option>
+          <option value={1}>1 compás</option>
+          <option value={2}>2 compases</option>
+        </select>
+      </label>
     </div>
   );
 }

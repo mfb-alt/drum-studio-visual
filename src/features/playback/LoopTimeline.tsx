@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import type { LoopState } from "./PlaybackEngine";
+import type { LoopState, MusicalPosition } from "./PlaybackEngine";
+import { formatPreciseTime } from "./formatTime";
 
 type DragMode = "start" | "end" | "range" | null;
 
@@ -10,6 +11,7 @@ interface LoopTimelineProps {
   loop: LoopState;
   disabled?: boolean;
   onSeek: (timeSec: number) => void;
+  musicalPositionAt?: (timeSec: number) => MusicalPosition;
   /** Live while dragging, committed (snapped) on release. */
   onLoopRange: (range: { startTime: number; endTime: number }, committed: boolean) => void;
 }
@@ -24,13 +26,17 @@ export function LoopTimeline({
   loop,
   disabled = false,
   onSeek,
+  musicalPositionAt,
   onLoopRange,
 }: LoopTimelineProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<DragMode>(null);
+  const [hover, setHover] = useState<{ timeSec: number; leftPct: number } | null>(null);
   const dragOffset = useRef(0);
-  const latest = useRef({ loop, durationSec, onLoopRange });
-  latest.current = { loop, durationSec, onLoopRange };
+  const pointerStart = useRef(0);
+  const dragMoved = useRef(false);
+  const latest = useRef({ loop, durationSec, onLoopRange, onSeek });
+  latest.current = { loop, durationSec, onLoopRange, onSeek };
 
   const timeAt = useCallback(
     (clientX: number) => {
@@ -46,6 +52,8 @@ export function LoopTimeline({
     if (!drag) return;
     const move = (event: PointerEvent) => {
       const { loop: current, durationSec: total, onLoopRange: emit } = latest.current;
+      if (Math.abs(event.clientX - pointerStart.current) <= 3) return;
+      dragMoved.current = true;
       const time = timeAt(event.clientX);
       if (drag === "start") {
         emit({ startTime: Math.min(time, current.endTime), endTime: current.endTime }, false);
@@ -57,9 +65,13 @@ export function LoopTimeline({
         emit({ startTime: start, endTime: start + length }, false);
       }
     };
-    const up = () => {
-      const { loop: current, onLoopRange: emit } = latest.current;
-      emit({ startTime: current.startTime, endTime: current.endTime }, true);
+    const up = (event: PointerEvent) => {
+      const { loop: current, onLoopRange: emit, onSeek: seek } = latest.current;
+      if (drag === "range" && !dragMoved.current) {
+        seek(timeAt(event.clientX));
+      } else {
+        emit({ startTime: current.startTime, endTime: current.endTime }, true);
+      }
       setDrag(null);
     };
     window.addEventListener("pointermove", move);
@@ -89,6 +101,11 @@ export function LoopTimeline({
       }}
       role="group"
       aria-label="Línea de tiempo y selección de bucle"
+      onPointerMove={(event) => {
+        const timeSec = timeAt(event.clientX);
+        setHover({ timeSec, leftPct: durationSec > 0 ? (timeSec / durationSec) * 100 : 0 });
+      }}
+      onPointerLeave={() => setHover(null)}
     >
       {hasRange ? (
         <>
@@ -100,6 +117,8 @@ export function LoopTimeline({
             style={{ left: `${startPct}%`, width: `${Math.max(0.4, endPct - startPct)}%` }}
             onPointerDown={(event) => {
               event.stopPropagation();
+              pointerStart.current = event.clientX;
+              dragMoved.current = false;
               dragOffset.current = timeAt(event.clientX) - loop.startTime;
               setDrag("range");
             }}
@@ -110,16 +129,32 @@ export function LoopTimeline({
           <Handle
             side="start"
             leftPct={startPct}
-            onPointerDown={() => setDrag("start")}
+            onPointerDown={(clientX) => {
+              pointerStart.current = clientX;
+              dragMoved.current = false;
+              setDrag("start");
+            }}
             label="Inicio del bucle"
           />
           <Handle
             side="end"
             leftPct={endPct}
-            onPointerDown={() => setDrag("end")}
+            onPointerDown={(clientX) => {
+              pointerStart.current = clientX;
+              dragMoved.current = false;
+              setDrag("end");
+            }}
             label="Final del bucle"
           />
         </>
+      ) : null}
+
+      {hover ? (
+        <HoverPosition
+          timeSec={hover.timeSec}
+          leftPct={hover.leftPct}
+          musicalPosition={musicalPositionAt?.(hover.timeSec)}
+        />
       ) : null}
 
       {/* Played progress */}
@@ -150,7 +185,7 @@ function Handle({
 }: {
   side: "start" | "end";
   leftPct: number;
-  onPointerDown: () => void;
+  onPointerDown: (clientX: number) => void;
   label: string;
 }) {
   return (
@@ -169,10 +204,38 @@ function Handle({
       onPointerDown={(event) => {
         event.stopPropagation();
         event.preventDefault();
-        onPointerDown();
+        onPointerDown(event.clientX);
       }}
     >
       <span className="absolute inset-y-1.5 left-1/2 w-px -translate-x-1/2 bg-background/70" aria-hidden />
+    </div>
+  );
+}
+
+function HoverPosition({
+  timeSec,
+  leftPct,
+  musicalPosition,
+}: {
+  timeSec: number;
+  leftPct: number;
+  musicalPosition?: MusicalPosition;
+}) {
+  return (
+    <div
+      className="pointer-events-none absolute inset-y-0 z-20 w-px bg-foreground/60"
+      style={{ left: `${leftPct}%` }}
+      aria-hidden
+    >
+      <div className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 font-mono text-[11px] text-popover-foreground shadow-md">
+        <span>{formatPreciseTime(timeSec)}</span>
+        {musicalPosition ? (
+          <span className="ml-2">
+            Compás {musicalPosition.measure}
+            {musicalPosition.beat ? ` · Tiempo ${musicalPosition.beat}` : ""}
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }

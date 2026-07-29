@@ -12,6 +12,19 @@ export interface LoopState {
   barAligned?: boolean;
 }
 
+export interface MusicalPosition {
+  measure: number;
+  beat?: number;
+}
+
+export interface CountInPlan {
+  beat: number;
+  bar: number;
+  durationMs: number;
+}
+
+export type CountInBars = 0 | 1 | 2;
+
 export interface PlaybackTick {
   positionSec: number;
   durationSec: number;
@@ -34,7 +47,8 @@ export interface PlaybackEngineListeners {
   onTick?: (tick: PlaybackTick) => void;
   onStatusChange?: (status: PlaybackStatus) => void;
   /** Fired right before the transport jumps back to the loop start. */
-  onLoopRestart?: () => void;
+  /** Return false to hold at the loop start until play() is called again. */
+  onLoopRestart?: () => boolean | void;
 }
 
 /**
@@ -171,6 +185,31 @@ export class PlaybackEngine {
     return this.speed;
   }
 
+  /** Count-in timing derived from the loaded musical grid and playback speed. */
+  countInPlan(bars: Exclude<CountInBars, 0>, positionSec = this.positionSec): CountInPlan[] {
+    const measure = this.measureAtTime(positionSec);
+    const barStart = this.bars[measure - 1] ?? 0;
+    const barEnd = this.bars[measure] ?? this.durationSec;
+    const beatTimes = this.beats.filter(
+      (time) => time >= barStart - 1e-6 && time < barEnd - 1e-6,
+    );
+    const usableBeats = beatTimes.length ? beatTimes : [barStart];
+    const fallbackDuration = Math.max(0.1, (barEnd - barStart) / usableBeats.length);
+    const plan: CountInPlan[] = [];
+
+    for (let bar = 1; bar <= bars; bar += 1) {
+      usableBeats.forEach((time, index) => {
+        const next = usableBeats[index + 1] ?? barEnd;
+        plan.push({
+          beat: index + 1,
+          bar,
+          durationMs: (Math.max(0.1, next - time || fallbackDuration) * 1000) / this.speed,
+        });
+      });
+    }
+    return plan;
+  }
+
   getLoop(): LoopState {
     return { ...this.loopState };
   }
@@ -206,6 +245,22 @@ export class PlaybackEngine {
       else break;
     }
     return index + 1;
+  }
+
+  /** Musical position at an arbitrary transport time, for timeline readouts. */
+  musicalPositionAt(timeSec: number): MusicalPosition {
+    const clamped = Math.max(0, Math.min(timeSec, this.durationSec));
+    const measure = this.measureAtTime(clamped);
+    if (this.beats.length <= 1) return { measure };
+
+    const barStart = this.bars[measure - 1] ?? 0;
+    let beat = 1;
+    for (const beatTime of this.beats) {
+      if (beatTime < barStart - 1e-6) continue;
+      if (beatTime <= clamped + 1e-6) beat += beatTime > barStart + 1e-6 ? 1 : 0;
+      else break;
+    }
+    return { measure, beat };
   }
 
   /** Shortest allowed loop: one beat, never under a second. */
@@ -303,10 +358,15 @@ export class PlaybackEngine {
     }
 
     if (looping && this.positionSec >= this.loopState.endTime - 1e-6) {
-      this.listeners.onLoopRestart?.();
       this.positionSec = this.loopState.startTime;
       this.cursor = this.events.findIndex((event) => event.timeSec >= this.positionSec - 1e-6);
       if (this.cursor < 0) this.cursor = this.events.length;
+      const resumeImmediately = this.listeners.onLoopRestart?.() !== false;
+      if (!resumeImmediately) {
+        this.setStatus("paused");
+        this.emitTick();
+        return;
+      }
       this.emitTick();
       this.rafId = this.requestFrame(this.loop);
       return;

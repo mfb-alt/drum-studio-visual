@@ -1,6 +1,6 @@
 import { formatPreciseTime } from "./formatTime";
 import type { PlaybackSpeed } from "@/features/songs/types";
-import type { LoopState } from "./PlaybackEngine";
+import type { LoopState, MusicalPosition } from "./PlaybackEngine";
 import { LoopTimeline } from "./LoopTimeline";
 
 interface PlaybackStatusBarProps {
@@ -13,6 +13,7 @@ interface PlaybackStatusBarProps {
   loop?: LoopState;
   disabled?: boolean;
   onSeek?: (timeSec: number) => void;
+  musicalPositionAt?: (timeSec: number) => MusicalPosition;
   onLoopRange?: (range: { startTime: number; endTime: number }, committed: boolean) => void;
 }
 
@@ -27,6 +28,7 @@ export function PlaybackStatusBar({
   loop,
   disabled = false,
   onSeek,
+  musicalPositionAt,
   onLoopRange,
 }: PlaybackStatusBarProps) {
   const progress = durationSec > 0 ? Math.min(100, (positionSec / durationSec) * 100) : 0;
@@ -43,6 +45,7 @@ export function PlaybackStatusBar({
             loop={loop}
             disabled={disabled}
             onSeek={(value) => onSeek?.(value)}
+            musicalPositionAt={musicalPositionAt}
             onLoopRange={(range, committed) => onLoopRange?.(range, committed)}
           />
         ) : (
