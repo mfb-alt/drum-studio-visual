@@ -1,6 +1,15 @@
 import type { DrumEvent } from "@/features/midi/types";
 import type { PlaybackSpeed, PlaybackStatus } from "@/features/songs/types";
 
+export interface LoopState {
+  enabled: boolean;
+  /** 1-based measure numbers. */
+  startMeasure: number;
+  endMeasure: number;
+  startTime: number;
+  endTime: number;
+}
+
 export interface PlaybackTick {
   positionSec: number;
   durationSec: number;
@@ -13,6 +22,7 @@ export interface PlaybackTick {
   canGoToEnd: boolean;
   canStepBack: boolean;
   canStepForward: boolean;
+  loop: LoopState;
 }
 
 export interface PlaybackEngineListeners {
@@ -21,6 +31,8 @@ export interface PlaybackEngineListeners {
   /** Fired on every frame with the transport position. */
   onTick?: (tick: PlaybackTick) => void;
   onStatusChange?: (status: PlaybackStatus) => void;
+  /** Fired right before the transport jumps back to the loop start. */
+  onLoopRestart?: () => void;
 }
 
 /**
@@ -39,6 +51,13 @@ export class PlaybackEngine {
   private rafId: number | null = null;
   private lastFrameMs = 0;
   private listeners: PlaybackEngineListeners = {};
+  private loopState: LoopState = {
+    enabled: false,
+    startMeasure: 1,
+    endMeasure: 1,
+    startTime: 0,
+    endTime: 0,
+  };
 
   setListeners(listeners: PlaybackEngineListeners) {
     this.listeners = listeners;
@@ -50,12 +69,25 @@ export class PlaybackEngine {
     this.events = [...events].sort((a, b) => a.timeSec - b.timeSec);
     this.durationSec = durationSec;
     this.bars = bars.length ? [...bars].sort((a, b) => a - b) : [0];
+    this.loopState = { ...this.loopState, ...this.measureRangeToTime(1, Math.min(2, this.bars.length)) };
     this.setStatus(this.events.length ? "idle" : "idle");
     this.emitTick();
   }
 
   play() {
     if (this.status === "playing" || this.durationSec <= 0) return;
+    if (this.loopState.enabled) {
+      if (
+        this.positionSec < this.loopState.startTime - 1e-6 ||
+        this.positionSec >= this.loopState.endTime - 1e-6
+      ) {
+        this.seek(this.loopState.startTime);
+      }
+      this.setStatus("playing");
+      this.lastFrameMs = this.now();
+      this.loop();
+      return;
+    }
     if (this.status === "ended") this.seek(0);
     this.setStatus("playing");
     this.lastFrameMs = this.now();
@@ -134,6 +166,44 @@ export class PlaybackEngine {
     return this.speed;
   }
 
+  getLoop(): LoopState {
+    return { ...this.loopState };
+  }
+
+  /**
+   * Single source of truth for musical range -> transport time.
+   * Measures are 1-based; the range ends at the very end of `endMeasure`.
+   */
+  measureRangeToTime(startMeasure: number, endMeasure: number) {
+    const total = Math.max(1, this.bars.length);
+    const start = Math.min(Math.max(1, Math.round(startMeasure)), total);
+    const end = Math.min(Math.max(start, Math.round(endMeasure)), total);
+    const startTime = this.bars[start - 1] ?? 0;
+    const endTime = end >= total ? this.durationSec : (this.bars[end] ?? this.durationSec);
+    return { startMeasure: start, endMeasure: end, startTime, endTime };
+  }
+
+  /**
+   * Enables/updates the loop. Changing the range while playing stops playback
+   * and parks the cursor at the start of the new fragment.
+   */
+  setLoop(next: { enabled: boolean; startMeasure: number; endMeasure: number }) {
+    const range = this.measureRangeToTime(next.startMeasure, next.endMeasure);
+    const previous = this.loopState;
+    this.loopState = { enabled: next.enabled, ...range };
+
+    const rangeChanged =
+      previous.startMeasure !== range.startMeasure || previous.endMeasure !== range.endMeasure;
+
+    if (next.enabled && (rangeChanged || !previous.enabled)) {
+      this.cancelLoop();
+      this.setStatus("idle");
+      this.seek(range.startTime);
+      return;
+    }
+    this.emitTick();
+  }
+
   getStatus() {
     return this.status;
   }
@@ -150,9 +220,23 @@ export class PlaybackEngine {
     this.lastFrameMs = nowMs;
     this.positionSec = Math.min(this.positionSec + deltaSec, this.durationSec);
 
-    while (this.cursor < this.events.length && this.events[this.cursor].timeSec <= this.positionSec) {
+    const looping = this.loopState.enabled && this.loopState.endTime > this.loopState.startTime;
+    // While looping, notes exactly at the loop end belong to the next cycle.
+    const limit = looping ? Math.min(this.positionSec, this.loopState.endTime - 1e-6) : this.positionSec;
+
+    while (this.cursor < this.events.length && this.events[this.cursor].timeSec <= limit) {
       this.listeners.onEvent?.(this.events[this.cursor], this.cursor);
       this.cursor += 1;
+    }
+
+    if (looping && this.positionSec >= this.loopState.endTime - 1e-6) {
+      this.listeners.onLoopRestart?.();
+      this.positionSec = this.loopState.startTime;
+      this.cursor = this.events.findIndex((event) => event.timeSec >= this.positionSec - 1e-6);
+      if (this.cursor < 0) this.cursor = this.events.length;
+      this.emitTick();
+      this.rafId = this.requestFrame(this.loop);
+      return;
     }
 
     this.emitTick();
@@ -186,6 +270,7 @@ export class PlaybackEngine {
       canGoToEnd: this.durationSec > 0 && !atEnd,
       canStepBack: this.durationSec > 0 && !atStart,
       canStepForward: this.durationSec > 0 && !atEnd,
+      loop: { ...this.loopState },
     });
   }
 

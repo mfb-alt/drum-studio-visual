@@ -7,6 +7,7 @@ import { withManualDrumTrack } from "@/features/midi/midiParser";
 import type { ParsedMidi } from "@/features/midi/types";
 import { TransportBar } from "@/features/playback/TransportBar";
 import { PlaybackStatusBar } from "@/features/playback/PlaybackStatusBar";
+import { LoopControls } from "@/features/playback/LoopControls";
 import { MidiDebugPanel } from "@/features/playback/MidiDebugPanel";
 import { usePlaybackEngine } from "@/features/playback/usePlaybackEngine";
 import { DifficultyBadge } from "@/features/songs/components/DifficultyBadge";
@@ -133,6 +134,7 @@ function PracticeSessionPage() {
         speed={playback.speed}
         eventIndex={playback.eventIndex}
         totalEvents={playback.totalEvents}
+        loop={playback.loop}
       />
 
       <TransportBar
@@ -149,6 +151,14 @@ function PracticeSessionPage() {
         onPreviousBar={playback.previousBar}
         onNextBar={playback.nextBar}
         onSpeedChange={playback.setSpeed}
+      />
+
+      <LoopControls
+        disabled={!midi}
+        loop={playback.loop}
+        barIndex={playback.barIndex}
+        barCount={playback.barCount}
+        onChange={playback.setLoop}
       />
 
       <MidiDebugPanel hits={playback.recentHits} litPads={playback.litPads} />

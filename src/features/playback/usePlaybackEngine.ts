@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PadId } from "@/features/kit/types";
 import { triggerDrumPad } from "@/features/kit/triggerDrumPad";
+import { stopAllVoices } from "@/features/audio/audioEngine";
 import type { DrumEvent, MidiTempo, ParsedMidi } from "@/features/midi/types";
 import type { PlaybackSpeed, PlaybackStatus } from "@/features/songs/types";
-import { PlaybackEngine } from "./PlaybackEngine";
+import { PlaybackEngine, type LoopState } from "./PlaybackEngine";
 import { buildBarGrid } from "./barGrid";
 
 const HIGHLIGHT_MS = 220;
@@ -37,6 +38,13 @@ export function usePlaybackEngine() {
   const [recentHits, setRecentHits] = useState<DebugHit[]>([]);
   const [barIndex, setBarIndex] = useState(0);
   const [barCount, setBarCount] = useState(1);
+  const [loop, setLoopState] = useState<LoopState>({
+    enabled: false,
+    startMeasure: 1,
+    endMeasure: 1,
+    startTime: 0,
+    endTime: 0,
+  });
   const [nav, setNav] = useState({
     canGoToStart: false,
     canGoToEnd: false,
@@ -84,6 +92,7 @@ export function usePlaybackEngine() {
         setDurationSec(tick.durationSec);
         setBarIndex(tick.barIndex);
         setBarCount(tick.barCount);
+        setLoopState(tick.loop);
         setNav({
           canGoToStart: tick.canGoToStart,
           canGoToEnd: tick.canGoToEnd,
@@ -92,6 +101,10 @@ export function usePlaybackEngine() {
         });
       },
       onStatusChange: setStatus,
+      onLoopRestart: () => {
+        // Silence the previous cycle so nothing bleeds over the restart.
+        stopAllVoices();
+      },
     });
     return () => engine.dispose();
   }, [engine, highlight]);
@@ -129,6 +142,14 @@ export function usePlaybackEngine() {
     [engine],
   );
 
+  const setLoop = useCallback(
+    (next: { enabled: boolean; startMeasure: number; endMeasure: number }) => {
+      engine.setLoop(next);
+      setLoopState(engine.getLoop());
+    },
+    [engine],
+  );
+
   const bpm = useMemo(() => {
     if (!tempos.length) return baseBpm;
     let current = tempos[0].bpm;
@@ -151,6 +172,7 @@ export function usePlaybackEngine() {
     recentHits,
     barIndex,
     barCount,
+    loop,
     ...nav,
     load,
     play: useCallback(() => engine.play(), [engine]),
@@ -162,5 +184,6 @@ export function usePlaybackEngine() {
     previousBar: useCallback(() => engine.previousBar(), [engine]),
     nextBar: useCallback(() => engine.nextBar(), [engine]),
     setSpeed,
+    setLoop,
   };
 }
