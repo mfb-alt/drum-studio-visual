@@ -263,7 +263,7 @@ export class PlaybackEngine {
   setLoop(next: { enabled: boolean; startMeasure: number; endMeasure: number }) {
     const range = this.measureRangeToTime(next.startMeasure, next.endMeasure);
     const previous = this.loopState;
-    this.loopState = { enabled: next.enabled, ...range };
+    this.loopState = { enabled: next.enabled, ...range, barAligned: true };
 
     const rangeChanged =
       previous.startMeasure !== range.startMeasure || previous.endMeasure !== range.endMeasure;
