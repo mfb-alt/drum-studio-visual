@@ -9,6 +9,7 @@ import { TransportBar } from "@/features/playback/TransportBar";
 import { PlaybackStatusBar } from "@/features/playback/PlaybackStatusBar";
 import { LoopControls } from "@/features/playback/LoopControls";
 import { MidiDebugPanel } from "@/features/playback/MidiDebugPanel";
+import { MuteControls } from "@/features/playback/MuteControls";
 import { usePlaybackEngine } from "@/features/playback/usePlaybackEngine";
 import { DifficultyBadge } from "@/features/songs/components/DifficultyBadge";
 import { getSongById } from "@/features/songs/songsData";
@@ -172,6 +173,16 @@ function PracticeSessionPage() {
         onSnapChange={playback.setSnapToBars}
         onRangeChange={playback.setLoopRange}
         onChange={playback.setLoop}
+      />
+
+      <MuteControls
+        disabled={!midi}
+        mutedFamilies={playback.mutedFamilies}
+        hideMutedVisuals={playback.hideMutedVisuals}
+        onToggle={playback.toggleMutedFamily}
+        onRestoreAll={playback.restoreAllPieces}
+        onMuteAll={playback.muteAllPieces}
+        onHideMutedVisualsChange={playback.setHideMutedVisuals}
       />
 
       <TransportBar

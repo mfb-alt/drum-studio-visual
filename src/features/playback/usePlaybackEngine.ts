@@ -2,6 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PadId } from "@/features/kit/types";
 import { triggerDrumPad } from "@/features/kit/triggerDrumPad";
 import { playMetronomeClick, stopAllVoices } from "@/features/audio/audioEngine";
+import {
+  DRUM_FAMILIES,
+  drumFamilyForNote,
+  drumFamilyForPad,
+  type DrumFamily,
+} from "@/features/midi/drumFamilies";
 import type { DrumEvent, MidiTempo, ParsedMidi } from "@/features/midi/types";
 import type { PlaybackSpeed, PlaybackStatus } from "@/features/songs/types";
 import {
@@ -47,6 +53,8 @@ export function usePlaybackEngine() {
   const [snapToBars, setSnapToBars] = useState(true);
   const [countInBars, setCountInBarsState] = useState<CountInBars>(1);
   const [countIn, setCountIn] = useState<CountInPlan | null>(null);
+  const [mutedFamilies, setMutedFamilies] = useState<DrumFamily[]>([]);
+  const [hideMutedVisuals, setHideMutedVisualsState] = useState(false);
   const [loop, setLoopState] = useState<LoopState>({
     enabled: false,
     startMeasure: 1,
@@ -65,6 +73,8 @@ export function usePlaybackEngine() {
   const countInGeneration = useRef(0);
   const countInBarsRef = useRef<CountInBars>(countInBars);
   const startCountInRef = useRef<(positionSec?: number) => boolean>(() => false);
+  const mutedFamiliesRef = useRef<ReadonlySet<DrumFamily>>(new Set());
+  const hideMutedVisualsRef = useRef(false);
   const hitId = useRef(0);
   countInBarsRef.current = countInBars;
 
@@ -131,8 +141,13 @@ export function usePlaybackEngine() {
         setEventIndex(index);
         if (event.padId) {
           const padId = event.padId;
-          triggerDrumPad(padId, event.velocity > 0 ? event.velocity : 1);
-          highlight(padId);
+          const family = drumFamilyForNote(event.note);
+          if (!family || !mutedFamiliesRef.current.has(family)) {
+            triggerDrumPad(padId, event.velocity > 0 ? event.velocity : 1);
+          }
+          const visuallyHidden =
+            hideMutedVisualsRef.current && Boolean(family && mutedFamiliesRef.current.has(family));
+          if (!visuallyHidden) highlight(padId);
           hitId.current += 1;
           const hit: DebugHit = {
             id: hitId.current,
@@ -196,6 +211,10 @@ export function usePlaybackEngine() {
       setTempos(midi.tempos);
       setBaseBpm(midi.bpm);
       setRecentHits([]);
+      mutedFamiliesRef.current = new Set();
+      setMutedFamilies([]);
+      hideMutedVisualsRef.current = false;
+      setHideMutedVisualsState(false);
     },
     [cancelCountIn, engine],
   );
@@ -261,6 +280,42 @@ export function usePlaybackEngine() {
     setSnapToBars,
     countInBars,
     countIn,
+    mutedFamilies,
+    hideMutedVisuals,
+    setHideMutedVisuals: useCallback((value: boolean) => {
+      hideMutedVisualsRef.current = value;
+      setHideMutedVisualsState(value);
+      if (value) {
+        setLitPads((current) =>
+          current.filter((padId) => {
+            const family = drumFamilyForPad(padId);
+            return !family || !mutedFamiliesRef.current.has(family);
+          }),
+        );
+      }
+    }, []),
+    toggleMutedFamily: useCallback((family: DrumFamily) => {
+      const next = new Set(mutedFamiliesRef.current);
+      if (next.has(family)) next.delete(family);
+      else {
+        next.add(family);
+        if (hideMutedVisualsRef.current) {
+          setLitPads((current) => current.filter((padId) => drumFamilyForPad(padId) !== family));
+        }
+      }
+      mutedFamiliesRef.current = next;
+      setMutedFamilies([...next]);
+    }, []),
+    restoreAllPieces: useCallback(() => {
+      mutedFamiliesRef.current = new Set();
+      setMutedFamilies([]);
+    }, []),
+    muteAllPieces: useCallback(() => {
+      const all = new Set(DRUM_FAMILIES.map(({ id }) => id));
+      mutedFamiliesRef.current = all;
+      setMutedFamilies([...all]);
+      if (hideMutedVisualsRef.current) setLitPads([]);
+    }, []),
     setCountInBars: useCallback(
       (value: CountInBars) => {
         cancelCountIn();

@@ -1,4 +1,5 @@
 import type { PadId } from "@/features/kit/types";
+import { GENERAL_MIDI_DRUM_NOTES } from "./drumFamilies";
 
 /**
  * General MIDI percussion note -> pad of the kit.
@@ -7,17 +8,9 @@ import type { PadId } from "@/features/kit/types";
  */
 export type DrumMap = Readonly<Record<number, PadId>>;
 
-export const GENERAL_MIDI_DRUM_MAP: DrumMap = {
-  36: "kick",
-  38: "snare",
-  42: "hihat",
-  46: "hihat",
-  48: "tom1",
-  45: "tom2",
-  43: "tom3",
-  49: "crash",
-  51: "ride",
-};
+export const GENERAL_MIDI_DRUM_MAP: DrumMap = Object.fromEntries(
+  GENERAL_MIDI_DRUM_NOTES.map(({ note, padId }) => [note, padId]),
+);
 
 /** Stateless mapper so alternative maps can be injected later. */
 export class DrumMapper {
