@@ -8,6 +8,8 @@ export interface LoopState {
   endMeasure: number;
   startTime: number;
   endTime: number;
+  /** True when the range sits exactly on musical bar boundaries. */
+  barAligned?: boolean;
 }
 
 export interface PlaybackTick {
@@ -46,6 +48,7 @@ export class PlaybackEngine {
   private positionSec = 0;
   private cursor = 0;
   private bars: number[] = [0];
+  private beats: number[] = [0];
   private speed: PlaybackSpeed = 1;
   private status: PlaybackStatus = "idle";
   private rafId: number | null = null;
@@ -57,6 +60,7 @@ export class PlaybackEngine {
     endMeasure: 1,
     startTime: 0,
     endTime: 0,
+    barAligned: true,
   };
 
   setListeners(listeners: PlaybackEngineListeners) {
@@ -64,11 +68,12 @@ export class PlaybackEngine {
   }
 
   /** Loads a timeline of events; resets the transport. */
-  load(events: DrumEvent[], durationSec: number, bars: number[] = [0]) {
+  load(events: DrumEvent[], durationSec: number, bars: number[] = [0], beats: number[] = [0]) {
     this.stop();
     this.events = [...events].sort((a, b) => a.timeSec - b.timeSec);
     this.durationSec = durationSec;
     this.bars = bars.length ? [...bars].sort((a, b) => a - b) : [0];
+    this.beats = beats.length ? [...beats].sort((a, b) => a - b) : [...this.bars];
     this.loopState = { ...this.loopState, ...this.measureRangeToTime(1, Math.min(2, this.bars.length)) };
     this.setStatus(this.events.length ? "idle" : "idle");
     this.emitTick();
