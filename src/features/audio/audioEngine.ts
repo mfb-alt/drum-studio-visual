@@ -8,6 +8,8 @@ import { VOICES } from "./voices";
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 let noiseBuffer: AudioBuffer | null = null;
+/** Currently sounding voices, so a loop restart can silence the previous cycle. */
+const activeVoices = new Set<{ out: GainNode; sources: AudioScheduledSourceNode[] }>();
 
 function getContext(): AudioContext | null {
   if (typeof window === "undefined") return null;
@@ -33,6 +35,24 @@ export function setMasterVolume(value: number) {
   if (audio && master) master.gain.value = Math.min(1, Math.max(0, value));
 }
 
+/** Stops every sounding voice with a tiny fade to avoid clicks. */
+export function stopAllVoices() {
+  const audio = ctx;
+  if (!audio) return;
+  const now = audio.currentTime;
+  activeVoices.forEach((voice) => {
+    try {
+      voice.out.gain.cancelScheduledValues(now);
+      voice.out.gain.setValueAtTime(voice.out.gain.value, now);
+      voice.out.gain.linearRampToValueAtTime(0.0001, now + 0.01);
+      voice.sources.forEach((source) => source.stop(now + 0.02));
+    } catch {
+      // A source that already stopped throws; nothing to clean up.
+    }
+  });
+  activeVoices.clear();
+}
+
 export function playPad(id: PadId, velocity = 1) {
   const audio = getContext();
   if (!audio || !master || !noiseBuffer) return;
@@ -42,6 +62,9 @@ export function playPad(id: PadId, velocity = 1) {
   const out = audio.createGain();
   out.gain.value = voice.gain * velocity;
   out.connect(master);
+  const entry = { out, sources: [] as AudioScheduledSourceNode[] };
+  activeVoices.add(entry);
+  setTimeout(() => activeVoices.delete(entry), (voice.decay + 0.1) * 1000);
 
   if (voice.tone > 0) {
     const osc = audio.createOscillator();
@@ -54,6 +77,7 @@ export function playPad(id: PadId, velocity = 1) {
     osc.connect(env).connect(out);
     osc.start(now);
     osc.stop(now + voice.decay + 0.05);
+    entry.sources.push(osc);
   }
 
   if (voice.noise > 0) {
@@ -68,5 +92,6 @@ export function playPad(id: PadId, velocity = 1) {
     source.connect(filter).connect(env).connect(out);
     source.start(now);
     source.stop(now + voice.decay + 0.05);
+    entry.sources.push(source);
   }
 }
