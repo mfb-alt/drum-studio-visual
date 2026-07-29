@@ -58,7 +58,7 @@ function PracticeSessionPage() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2.5">
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 sm:flex sm:flex-wrap sm:justify-between">
         <div className="min-w-0 space-y-1">
           <h1 className="truncate text-xl font-semibold tracking-tight text-foreground md:text-2xl">
