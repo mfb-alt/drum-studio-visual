@@ -8,6 +8,8 @@ export interface LoopState {
   endMeasure: number;
   startTime: number;
   endTime: number;
+  /** True when the range sits exactly on musical bar boundaries. */
+  barAligned?: boolean;
 }
 
 export interface PlaybackTick {
@@ -46,6 +48,7 @@ export class PlaybackEngine {
   private positionSec = 0;
   private cursor = 0;
   private bars: number[] = [0];
+  private beats: number[] = [0];
   private speed: PlaybackSpeed = 1;
   private status: PlaybackStatus = "idle";
   private rafId: number | null = null;
@@ -57,6 +60,7 @@ export class PlaybackEngine {
     endMeasure: 1,
     startTime: 0,
     endTime: 0,
+    barAligned: true,
   };
 
   setListeners(listeners: PlaybackEngineListeners) {
@@ -64,11 +68,12 @@ export class PlaybackEngine {
   }
 
   /** Loads a timeline of events; resets the transport. */
-  load(events: DrumEvent[], durationSec: number, bars: number[] = [0]) {
+  load(events: DrumEvent[], durationSec: number, bars: number[] = [0], beats: number[] = [0]) {
     this.stop();
     this.events = [...events].sort((a, b) => a.timeSec - b.timeSec);
     this.durationSec = durationSec;
     this.bars = bars.length ? [...bars].sort((a, b) => a - b) : [0];
+    this.beats = beats.length ? [...beats].sort((a, b) => a - b) : [...this.bars];
     this.loopState = { ...this.loopState, ...this.measureRangeToTime(1, Math.min(2, this.bars.length)) };
     this.setStatus(this.events.length ? "idle" : "idle");
     this.emitTick();
@@ -170,6 +175,74 @@ export class PlaybackEngine {
     return { ...this.loopState };
   }
 
+  /** True when the loaded file gave us a usable bar grid. */
+  hasBarGrid() {
+    return this.bars.length > 1;
+  }
+
+  /** Nearest musical boundary: bar first, beat second, exact time otherwise. */
+  snapToMusicalGrid(timeSec: number): number {
+    const clamped = Math.max(0, Math.min(timeSec, this.durationSec));
+    const grid =
+      this.bars.length > 1 ? this.bars : this.beats.length > 1 ? this.beats : null;
+    if (!grid) return clamped;
+    let best = grid[0];
+    let bestDelta = Math.abs(clamped - best);
+    for (const candidate of [...grid, this.durationSec]) {
+      const delta = Math.abs(clamped - candidate);
+      if (delta < bestDelta) {
+        best = candidate;
+        bestDelta = delta;
+      }
+    }
+    return best;
+  }
+
+  /** 1-based measure containing the given time. */
+  measureAtTime(timeSec: number): number {
+    let index = 0;
+    for (let i = 0; i < this.bars.length; i += 1) {
+      if (this.bars[i] <= timeSec + 1e-6) index = i;
+      else break;
+    }
+    return index + 1;
+  }
+
+  /** Shortest allowed loop: one beat, never under a second. */
+  minLoopLength(): number {
+    const beat = this.beats.length > 1 ? this.beats[1] - this.beats[0] : 0;
+    return Math.max(1, beat || 0);
+  }
+
+  /**
+   * Time-based loop entry point used by the visual selector.
+   * Measures are derived here so the UI never converts time to bars.
+   */
+  setLoopTime(next: { enabled: boolean; startTime: number; endTime: number; snap: boolean }) {
+    if (this.durationSec <= 0) return;
+    const clamp = (value: number) => Math.max(0, Math.min(value, this.durationSec));
+    let start = clamp(next.snap ? this.snapToMusicalGrid(next.startTime) : next.startTime);
+    let end = clamp(next.snap ? this.snapToMusicalGrid(next.endTime) : next.endTime);
+    const min = Math.min(this.minLoopLength(), this.durationSec);
+    if (end - start < min) {
+      end = clamp(start + min);
+      if (end - start < min) start = clamp(end - min);
+    }
+    this.loopState = {
+      enabled: next.enabled,
+      startTime: start,
+      endTime: end,
+      startMeasure: this.measureAtTime(start),
+      endMeasure: this.measureAtTime(Math.max(start, end - 1e-4)),
+      barAligned: next.snap && this.bars.length > 1,
+    };
+    if (next.enabled && (this.positionSec < start - 1e-6 || this.positionSec > end + 1e-6)) {
+      this.seek(start);
+      return;
+    }
+    this.emitTick();
+  }
+
   /**
    * Single source of truth for musical range -> transport time.
    * Measures are 1-based; the range ends at the very end of `endMeasure`.
@@ -190,7 +263,7 @@ export class PlaybackEngine {
   setLoop(next: { enabled: boolean; startMeasure: number; endMeasure: number }) {
     const range = this.measureRangeToTime(next.startMeasure, next.endMeasure);
     const previous = this.loopState;
-    this.loopState = { enabled: next.enabled, ...range };
+    this.loopState = { enabled: next.enabled, ...range, barAligned: true };
 
     const rangeChanged =
       previous.startMeasure !== range.startMeasure || previous.endMeasure !== range.endMeasure;

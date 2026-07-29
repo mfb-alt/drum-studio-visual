@@ -48,3 +48,31 @@ export function buildBarGrid({
   }
   return bars;
 }
+
+/**
+ * Builds the absolute start time of every beat, used for finer loop snapping.
+ */
+export function buildBeatGrid({
+  tempos,
+  timeSignatures,
+  durationSec,
+  fallbackBpm = 120,
+}: BarGridInput): number[] {
+  if (durationSec <= 0) return [0];
+  const sortedTempos = [...tempos].sort((a, b) => a.timeSec - b.timeSec);
+  const sortedSignatures = [...timeSignatures].sort((a, b) => a.timeSec - b.timeSec);
+
+  const beats: number[] = [0];
+  let time = 0;
+  while (time < durationSec && beats.length < MAX_BARS * 8) {
+    const bpm = valueAt(sortedTempos, time)?.bpm ?? fallbackBpm;
+    const signature = valueAt(sortedSignatures, time);
+    const denominator = signature?.denominator ?? 4;
+    const beatSec = (60 / (bpm > 0 ? bpm : fallbackBpm)) * (4 / denominator);
+    if (!Number.isFinite(beatSec) || beatSec <= 0) break;
+    time += beatSec;
+    if (time >= durationSec - 1e-6) break;
+    beats.push(time);
+  }
+  return beats;
+}
