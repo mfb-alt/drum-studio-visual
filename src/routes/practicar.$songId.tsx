@@ -135,6 +135,28 @@ function PracticeSessionPage() {
         eventIndex={playback.eventIndex}
         totalEvents={playback.totalEvents}
         loop={playback.loop}
+        disabled={!midi}
+        onSeek={playback.seek}
+        onLoopRange={(range, committed) =>
+          playback.setLoopRange({
+            startTime: range.startTime,
+            endTime: range.endTime,
+            snap: committed && playback.snapToBars,
+          })
+        }
+      />
+
+      <LoopControls
+        disabled={!midi}
+        loop={playback.loop}
+        barIndex={playback.barIndex}
+        barCount={playback.barCount}
+        positionSec={playback.positionSec}
+        hasBarGrid={playback.hasBarGrid}
+        snapToBars={playback.snapToBars}
+        onSnapChange={playback.setSnapToBars}
+        onRangeChange={playback.setLoopRange}
+        onChange={playback.setLoop}
       />
 
       <TransportBar
@@ -151,14 +173,6 @@ function PracticeSessionPage() {
         onPreviousBar={playback.previousBar}
         onNextBar={playback.nextBar}
         onSpeedChange={playback.setSpeed}
-      />
-
-      <LoopControls
-        disabled={!midi}
-        loop={playback.loop}
-        barIndex={playback.barIndex}
-        barCount={playback.barCount}
-        onChange={playback.setLoop}
       />
 
       <MidiDebugPanel hits={playback.recentHits} litPads={playback.litPads} />
