@@ -5,7 +5,7 @@ import { stopAllVoices } from "@/features/audio/audioEngine";
 import type { DrumEvent, MidiTempo, ParsedMidi } from "@/features/midi/types";
 import type { PlaybackSpeed, PlaybackStatus } from "@/features/songs/types";
 import { PlaybackEngine, type LoopState } from "./PlaybackEngine";
-import { buildBarGrid } from "./barGrid";
+import { buildBarGrid, buildBeatGrid } from "./barGrid";
 
 const HIGHLIGHT_MS = 220;
 /** How many recent hits the debug panel keeps. */
@@ -38,6 +38,8 @@ export function usePlaybackEngine() {
   const [recentHits, setRecentHits] = useState<DebugHit[]>([]);
   const [barIndex, setBarIndex] = useState(0);
   const [barCount, setBarCount] = useState(1);
+  const [hasBarGrid, setHasBarGrid] = useState(false);
+  const [snapToBars, setSnapToBars] = useState(true);
   const [loop, setLoopState] = useState<LoopState>({
     enabled: false,
     startMeasure: 1,
@@ -116,13 +118,16 @@ export function usePlaybackEngine() {
 
   const load = useCallback(
     (midi: ParsedMidi) => {
-      const bars = buildBarGrid({
+      const gridInput = {
         tempos: midi.tempos,
         timeSignatures: midi.timeSignatures,
         durationSec: midi.durationSec,
         fallbackBpm: midi.bpm,
-      });
-      engine.load(midi.drumEvents, midi.durationSec, bars);
+      };
+      const bars = buildBarGrid(gridInput);
+      const beats = buildBeatGrid(gridInput);
+      engine.load(midi.drumEvents, midi.durationSec, bars, beats);
+      setHasBarGrid(engine.hasBarGrid());
       setDurationSec(midi.durationSec);
       setPositionSec(0);
       setEventIndex(-1);
@@ -145,6 +150,20 @@ export function usePlaybackEngine() {
   const setLoop = useCallback(
     (next: { enabled: boolean; startMeasure: number; endMeasure: number }) => {
       engine.setLoop(next);
+      setLoopState(engine.getLoop());
+    },
+    [engine],
+  );
+
+  /** Time-based loop edit used by the visual selector and the mark buttons. */
+  const setLoopRange = useCallback(
+    (next: { startTime: number; endTime: number; enabled?: boolean; snap?: boolean }) => {
+      engine.setLoopTime({
+        enabled: next.enabled ?? engine.getLoop().enabled,
+        startTime: next.startTime,
+        endTime: next.endTime,
+        snap: next.snap ?? false,
+      });
       setLoopState(engine.getLoop());
     },
     [engine],
@@ -173,6 +192,9 @@ export function usePlaybackEngine() {
     barIndex,
     barCount,
     loop,
+    hasBarGrid,
+    snapToBars,
+    setSnapToBars,
     ...nav,
     load,
     play: useCallback(() => engine.play(), [engine]),
@@ -185,5 +207,6 @@ export function usePlaybackEngine() {
     nextBar: useCallback(() => engine.nextBar(), [engine]),
     setSpeed,
     setLoop,
+    setLoopRange,
   };
 }
