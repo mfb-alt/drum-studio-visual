@@ -14,7 +14,9 @@ const activeVoices = new Set<{ out: GainNode; sources: AudioScheduledSourceNode[
 function getContext(): AudioContext | null {
   if (typeof window === "undefined") return null;
   if (!ctx) {
-    const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    const Ctor =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!Ctor) return null;
     ctx = new Ctor();
     master = ctx.createGain();
@@ -99,7 +101,7 @@ export function playPad(id: PadId, velocity = 1) {
     const source = audio.createBufferSource();
     source.buffer = noiseBuffer;
     const filter = audio.createBiquadFilter();
-    filter.type = voice.color > 5000 ? "highpass" : "bandpass";
+    filter.type = voice.filter;
     filter.frequency.value = voice.color;
     const env = audio.createGain();
     env.gain.setValueAtTime(voice.noise, now);

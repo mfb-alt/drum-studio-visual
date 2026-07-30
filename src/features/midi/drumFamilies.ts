@@ -23,6 +23,9 @@ export const GENERAL_MIDI_DRUM_NOTES: ReadonlyArray<{
   { note: 38, family: "snare", padId: "snare" },
   { note: 39, family: "snare", padId: "snare" },
   { note: 40, family: "snare", padId: "snare" },
+  // Roland/GM hi-hat: closed edge/bow, pedal, and open edge/bow.
+  { note: 22, family: "hihat", padId: "hihat" },
+  { note: 26, family: "hihat", padId: "hihat" },
   { note: 42, family: "hihat", padId: "hihat" },
   { note: 44, family: "hihat", padId: "hihat-pedal" },
   { note: 46, family: "hihat", padId: "hihat" },

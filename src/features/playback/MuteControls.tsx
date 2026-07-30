@@ -1,27 +1,22 @@
 import { RotateCcw, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { DRUM_FAMILIES, type DrumFamily } from "@/features/midi/drumFamilies";
 
 interface MuteControlsProps {
   disabled?: boolean;
   mutedFamilies: DrumFamily[];
-  hideMutedVisuals: boolean;
   onToggle: (family: DrumFamily) => void;
   onRestoreAll: () => void;
   onMuteAll: () => void;
-  onHideMutedVisualsChange: (value: boolean) => void;
 }
 
 export function MuteControls({
   disabled = false,
   mutedFamilies,
-  hideMutedVisuals,
   onToggle,
   onRestoreAll,
   onMuteAll,
-  onHideMutedVisualsChange,
 }: MuteControlsProps) {
   const allMuted = mutedFamilies.length === DRUM_FAMILIES.length;
 
@@ -46,10 +41,15 @@ export function MuteControls({
             onClick={() => onToggle(id)}
             className={cn(
               "h-8 gap-1.5 rounded-full px-3 text-xs",
-              muted && "bg-destructive/15 text-destructive hover:bg-destructive/20 hover:text-destructive",
+              muted &&
+                "bg-destructive/15 text-destructive hover:bg-destructive/20 hover:text-destructive",
             )}
           >
-            {muted ? <VolumeX className="h-3.5 w-3.5" aria-hidden /> : <Volume2 className="h-3.5 w-3.5" aria-hidden />}
+            {muted ? (
+              <VolumeX className="h-3.5 w-3.5" aria-hidden />
+            ) : (
+              <Volume2 className="h-3.5 w-3.5" aria-hidden />
+            )}
             {label}
           </Button>
         );
@@ -78,16 +78,6 @@ export function MuteControls({
           Silenciar batería completa
         </Button>
       </div>
-
-      <label className="flex basis-full items-center justify-end gap-2 border-t border-border pt-2 text-xs text-muted-foreground">
-        Ocultar también en la guía visual
-        <Switch
-          checked={hideMutedVisuals}
-          disabled={disabled}
-          onCheckedChange={onHideMutedVisualsChange}
-          aria-label="Ocultar también en la guía visual"
-        />
-      </label>
     </div>
   );
 }

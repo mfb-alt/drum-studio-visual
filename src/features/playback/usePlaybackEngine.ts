@@ -2,12 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PadId } from "@/features/kit/types";
 import { triggerDrumPad } from "@/features/kit/triggerDrumPad";
 import { playMetronomeClick, stopAllVoices } from "@/features/audio/audioEngine";
-import {
-  DRUM_FAMILIES,
-  drumFamilyForNote,
-  drumFamilyForPad,
-  type DrumFamily,
-} from "@/features/midi/drumFamilies";
+import { DRUM_FAMILIES, type DrumFamily } from "@/features/midi/drumFamilies";
 import type { DrumEvent, MidiTempo, ParsedMidi } from "@/features/midi/types";
 import type { PlaybackSpeed, PlaybackStatus } from "@/features/songs/types";
 import {
@@ -17,6 +12,7 @@ import {
   type LoopState,
 } from "./PlaybackEngine";
 import { buildBarGrid, buildBeatGrid } from "./barGrid";
+import { createDefaultPracticeOptions, type PracticeOptions } from "./practiceOptions";
 
 const HIGHLIGHT_MS = 220;
 /** How many recent hits the debug panel keeps. */
@@ -53,8 +49,9 @@ export function usePlaybackEngine() {
   const [snapToBars, setSnapToBars] = useState(true);
   const [countInBars, setCountInBarsState] = useState<CountInBars>(1);
   const [countIn, setCountIn] = useState<CountInPlan | null>(null);
-  const [mutedFamilies, setMutedFamilies] = useState<DrumFamily[]>([]);
-  const [hideMutedVisuals, setHideMutedVisualsState] = useState(false);
+  const [practiceOptions, setPracticeOptionsState] = useState<PracticeOptions>(
+    createDefaultPracticeOptions,
+  );
   const [loop, setLoopState] = useState<LoopState>({
     enabled: false,
     startMeasure: 1,
@@ -73,8 +70,7 @@ export function usePlaybackEngine() {
   const countInGeneration = useRef(0);
   const countInBarsRef = useRef<CountInBars>(countInBars);
   const startCountInRef = useRef<(positionSec?: number) => boolean>(() => false);
-  const mutedFamiliesRef = useRef<ReadonlySet<DrumFamily>>(new Set());
-  const hideMutedVisualsRef = useRef(false);
+  const practiceOptionsRef = useRef<PracticeOptions>(practiceOptions);
   const hitId = useRef(0);
   countInBarsRef.current = countInBars;
 
@@ -122,6 +118,17 @@ export function usePlaybackEngine() {
   );
   startCountInRef.current = startCountIn;
 
+  const commitPracticeOptions = useCallback(
+    (next: PracticeOptions) => {
+      if (!next.drums) stopAllVoices();
+      if (!next.visualGuide) setLitPads([]);
+      practiceOptionsRef.current = next;
+      engine.setPracticeOptions(next);
+      setPracticeOptionsState(next);
+    },
+    [engine],
+  );
+
   const highlight = useCallback((padId: PadId) => {
     setLitPads((current) => (current.includes(padId) ? current : [...current, padId]));
     const existing = timers.current.get(padId);
@@ -137,17 +144,14 @@ export function usePlaybackEngine() {
 
   useEffect(() => {
     engine.setListeners({
-      onEvent: (event: DrumEvent, index: number) => {
+      onEvent: (event: DrumEvent, index: number, playAudio: boolean) => {
         setEventIndex(index);
         if (event.padId) {
           const padId = event.padId;
-          const family = drumFamilyForNote(event.note);
-          if (!family || !mutedFamiliesRef.current.has(family)) {
+          if (playAudio) {
             triggerDrumPad(padId, event.velocity > 0 ? event.velocity : 1);
           }
-          const visuallyHidden =
-            hideMutedVisualsRef.current && Boolean(family && mutedFamiliesRef.current.has(family));
-          if (!visuallyHidden) highlight(padId);
+          if (practiceOptionsRef.current.visualGuide) highlight(padId);
           hitId.current += 1;
           const hit: DebugHit = {
             id: hitId.current,
@@ -174,6 +178,9 @@ export function usePlaybackEngine() {
         });
       },
       onStatusChange: setStatus,
+      onBeat: (_timeSec, position) => {
+        playMetronomeClick(position.beat === 1);
+      },
       onLoopRestart: () => {
         // Silence the previous cycle so nothing bleeds over the restart.
         stopAllVoices();
@@ -211,10 +218,10 @@ export function usePlaybackEngine() {
       setTempos(midi.tempos);
       setBaseBpm(midi.bpm);
       setRecentHits([]);
-      mutedFamiliesRef.current = new Set();
-      setMutedFamilies([]);
-      hideMutedVisualsRef.current = false;
-      setHideMutedVisualsState(false);
+      const defaults = createDefaultPracticeOptions();
+      practiceOptionsRef.current = defaults;
+      engine.setPracticeOptions(defaults);
+      setPracticeOptionsState(defaults);
     },
     [cancelCountIn, engine],
   );
@@ -280,42 +287,35 @@ export function usePlaybackEngine() {
     setSnapToBars,
     countInBars,
     countIn,
-    mutedFamilies,
-    hideMutedVisuals,
-    setHideMutedVisuals: useCallback((value: boolean) => {
-      hideMutedVisualsRef.current = value;
-      setHideMutedVisualsState(value);
-      if (value) {
-        setLitPads((current) =>
-          current.filter((padId) => {
-            const family = drumFamilyForPad(padId);
-            return !family || !mutedFamiliesRef.current.has(family);
-          }),
-        );
-      }
-    }, []),
-    toggleMutedFamily: useCallback((family: DrumFamily) => {
-      const next = new Set(mutedFamiliesRef.current);
-      if (next.has(family)) next.delete(family);
-      else {
-        next.add(family);
-        if (hideMutedVisualsRef.current) {
-          setLitPads((current) => current.filter((padId) => drumFamilyForPad(padId) !== family));
-        }
-      }
-      mutedFamiliesRef.current = next;
-      setMutedFamilies([...next]);
-    }, []),
+    practiceOptions,
+    setMutedTrackIds: useCallback(
+      (trackIds: Iterable<number>) => engine.setMutedTrackIds(trackIds),
+      [engine],
+    ),
+    setPracticeOption: useCallback(
+      (key: "song" | "drums" | "metronome" | "visualGuide", value: boolean) => {
+        commitPracticeOptions({ ...practiceOptionsRef.current, [key]: value });
+      },
+      [commitPracticeOptions],
+    ),
+    toggleMutedFamily: useCallback(
+      (family: DrumFamily) => {
+        const next = new Set(practiceOptionsRef.current.mutedFamilies);
+        if (next.has(family)) next.delete(family);
+        else next.add(family);
+        commitPracticeOptions({ ...practiceOptionsRef.current, mutedFamilies: [...next] });
+      },
+      [commitPracticeOptions],
+    ),
     restoreAllPieces: useCallback(() => {
-      mutedFamiliesRef.current = new Set();
-      setMutedFamilies([]);
-    }, []),
+      commitPracticeOptions({ ...practiceOptionsRef.current, mutedFamilies: [] });
+    }, [commitPracticeOptions]),
     muteAllPieces: useCallback(() => {
-      const all = new Set(DRUM_FAMILIES.map(({ id }) => id));
-      mutedFamiliesRef.current = all;
-      setMutedFamilies([...all]);
-      if (hideMutedVisualsRef.current) setLitPads([]);
-    }, []),
+      commitPracticeOptions({
+        ...practiceOptionsRef.current,
+        mutedFamilies: DRUM_FAMILIES.map(({ id }) => id),
+      });
+    }, [commitPracticeOptions]),
     setCountInBars: useCallback(
       (value: CountInBars) => {
         cancelCountIn();

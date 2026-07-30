@@ -1,5 +1,10 @@
 import type { DrumEvent } from "@/features/midi/types";
 import type { PlaybackSpeed, PlaybackStatus } from "@/features/songs/types";
+import {
+  createDefaultPracticeOptions,
+  shouldPlayDrumNote,
+  type PracticeOptions,
+} from "./practiceOptions";
 
 export interface LoopState {
   enabled: boolean;
@@ -42,10 +47,12 @@ export interface PlaybackTick {
 
 export interface PlaybackEngineListeners {
   /** Fired once per note when the transport reaches it. */
-  onEvent?: (event: DrumEvent, index: number) => void;
+  onEvent?: (event: DrumEvent, index: number, playAudio: boolean) => void;
   /** Fired on every frame with the transport position. */
   onTick?: (tick: PlaybackTick) => void;
   onStatusChange?: (status: PlaybackStatus) => void;
+  /** Fired when the transport crosses a beat from the loaded musical grid. */
+  onBeat?: (timeSec: number, position: MusicalPosition) => void;
   /** Fired right before the transport jumps back to the loop start. */
   /** Return false to hold at the loop start until play() is called again. */
   onLoopRestart?: () => boolean | void;
@@ -63,11 +70,14 @@ export class PlaybackEngine {
   private cursor = 0;
   private bars: number[] = [0];
   private beats: number[] = [0];
+  private beatCursor = 0;
   private speed: PlaybackSpeed = 1;
   private status: PlaybackStatus = "idle";
   private rafId: number | null = null;
   private lastFrameMs = 0;
   private listeners: PlaybackEngineListeners = {};
+  private practiceOptions = createDefaultPracticeOptions();
+  private mutedTrackIds = new Set<number>();
   private loopState: LoopState = {
     enabled: false,
     startMeasure: 1,
@@ -81,6 +91,14 @@ export class PlaybackEngine {
     this.listeners = listeners;
   }
 
+  setPracticeOptions(options: PracticeOptions) {
+    this.practiceOptions = { ...options, mutedFamilies: [...options.mutedFamilies] };
+  }
+
+  setMutedTrackIds(trackIds: Iterable<number>) {
+    this.mutedTrackIds = new Set(trackIds);
+  }
+
   /** Loads a timeline of events; resets the transport. */
   load(events: DrumEvent[], durationSec: number, bars: number[] = [0], beats: number[] = [0]) {
     this.stop();
@@ -88,7 +106,11 @@ export class PlaybackEngine {
     this.durationSec = durationSec;
     this.bars = bars.length ? [...bars].sort((a, b) => a - b) : [0];
     this.beats = beats.length ? [...beats].sort((a, b) => a - b) : [...this.bars];
-    this.loopState = { ...this.loopState, ...this.measureRangeToTime(1, Math.min(2, this.bars.length)) };
+    this.beatCursor = 0;
+    this.loopState = {
+      ...this.loopState,
+      ...this.measureRangeToTime(1, Math.min(2, this.bars.length)),
+    };
     this.setStatus(this.events.length ? "idle" : "idle");
     this.emitTick();
   }
@@ -124,6 +146,7 @@ export class PlaybackEngine {
     this.cancelLoop();
     this.positionSec = 0;
     this.cursor = 0;
+    this.beatCursor = 0;
     this.setStatus("idle");
     this.emitTick();
   }
@@ -132,6 +155,8 @@ export class PlaybackEngine {
     this.positionSec = Math.max(0, Math.min(positionSec, this.durationSec));
     this.cursor = this.events.findIndex((event) => event.timeSec >= this.positionSec);
     if (this.cursor < 0) this.cursor = this.events.length;
+    this.beatCursor = this.beats.findIndex((time) => time >= this.positionSec - 1e-6);
+    if (this.beatCursor < 0) this.beatCursor = this.beats.length;
     this.emitTick();
   }
 
@@ -190,9 +215,7 @@ export class PlaybackEngine {
     const measure = this.measureAtTime(positionSec);
     const barStart = this.bars[measure - 1] ?? 0;
     const barEnd = this.bars[measure] ?? this.durationSec;
-    const beatTimes = this.beats.filter(
-      (time) => time >= barStart - 1e-6 && time < barEnd - 1e-6,
-    );
+    const beatTimes = this.beats.filter((time) => time >= barStart - 1e-6 && time < barEnd - 1e-6);
     const usableBeats = beatTimes.length ? beatTimes : [barStart];
     const fallbackDuration = Math.max(0.1, (barEnd - barStart) / usableBeats.length);
     const plan: CountInPlan[] = [];
@@ -222,8 +245,7 @@ export class PlaybackEngine {
   /** Nearest musical boundary: bar first, beat second, exact time otherwise. */
   snapToMusicalGrid(timeSec: number): number {
     const clamped = Math.max(0, Math.min(timeSec, this.durationSec));
-    const grid =
-      this.bars.length > 1 ? this.bars : this.beats.length > 1 ? this.beats : null;
+    const grid = this.bars.length > 1 ? this.bars : this.beats.length > 1 ? this.beats : null;
     if (!grid) return clamped;
     let best = grid[0];
     let bestDelta = Math.abs(clamped - best);
@@ -350,17 +372,35 @@ export class PlaybackEngine {
 
     const looping = this.loopState.enabled && this.loopState.endTime > this.loopState.startTime;
     // While looping, notes exactly at the loop end belong to the next cycle.
-    const limit = looping ? Math.min(this.positionSec, this.loopState.endTime - 1e-6) : this.positionSec;
+    const limit = looping
+      ? Math.min(this.positionSec, this.loopState.endTime - 1e-6)
+      : this.positionSec;
 
     while (this.cursor < this.events.length && this.events[this.cursor].timeSec <= limit) {
-      this.listeners.onEvent?.(this.events[this.cursor], this.cursor);
+      const event = this.events[this.cursor];
+      this.listeners.onEvent?.(
+        event,
+        this.cursor,
+        !this.mutedTrackIds.has(event.track) &&
+          shouldPlayDrumNote(event.note, this.practiceOptions),
+      );
       this.cursor += 1;
+    }
+
+    while (this.beatCursor < this.beats.length && this.beats[this.beatCursor] <= limit) {
+      const beatTime = this.beats[this.beatCursor];
+      if (this.practiceOptions.metronome) {
+        this.listeners.onBeat?.(beatTime, this.musicalPositionAt(beatTime));
+      }
+      this.beatCursor += 1;
     }
 
     if (looping && this.positionSec >= this.loopState.endTime - 1e-6) {
       this.positionSec = this.loopState.startTime;
       this.cursor = this.events.findIndex((event) => event.timeSec >= this.positionSec - 1e-6);
       if (this.cursor < 0) this.cursor = this.events.length;
+      this.beatCursor = this.beats.findIndex((time) => time >= this.positionSec - 1e-6);
+      if (this.beatCursor < 0) this.beatCursor = this.beats.length;
       const resumeImmediately = this.listeners.onLoopRestart?.() !== false;
       if (!resumeImmediately) {
         this.setStatus("paused");

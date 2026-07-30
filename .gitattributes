@@ -1,0 +1,3 @@
+# Third-party alphaTab assets are vendored byte-for-byte.
+public/font/** -diff
+public/soundfont/** -diff
