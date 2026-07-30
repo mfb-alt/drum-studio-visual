@@ -5,6 +5,7 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import type { LoopState } from "./PlaybackEngine";
 import { formatPreciseTime } from "./formatTime";
+import { changeLoopEnabled } from "./loopControlActions";
 
 interface LoopControlsProps {
   disabled?: boolean;
@@ -17,8 +18,15 @@ interface LoopControlsProps {
   snapToBars?: boolean;
   onSnapChange?: (snap: boolean) => void;
   /** Time-based edit; PlaybackEngine converts to measures. */
-  onRangeChange?: (next: { startTime: number; endTime: number; enabled?: boolean; snap?: boolean }) => void;
+  onRangeChange?: (next: {
+    startTime: number;
+    endTime: number;
+    enabled?: boolean;
+    snap?: boolean;
+  }) => void;
   onChange: (next: { enabled: boolean; startMeasure: number; endMeasure: number }) => void;
+  showToggle?: boolean;
+  embedded?: boolean;
 }
 
 /** Compact loop block; all musical time maths live in PlaybackEngine. */
@@ -33,6 +41,8 @@ export function LoopControls({
   onSnapChange,
   onRangeChange,
   onChange,
+  showToggle = true,
+  embedded = false,
 }: LoopControlsProps) {
   const currentMeasure = Math.min(barIndex + 1, barCount);
   const [precise, setPrecise] = useState(false);
@@ -40,42 +50,40 @@ export function LoopControls({
   const lengthSec = Math.max(0, loop.endTime - loop.startTime);
 
   const toggle = (enabled: boolean) => {
-    if (!enabled) {
-      onChange({ enabled: false, startMeasure: loop.startMeasure, endMeasure: loop.endMeasure });
-      return;
-    }
-    if (hasSelection) {
-      onRangeChange?.({
-        startTime: loop.startTime,
-        endTime: loop.endTime,
-        enabled: true,
-        snap: snapToBars,
-      });
-      return;
-    }
-    onChange({
-      enabled: true,
-      startMeasure: currentMeasure,
-      endMeasure: Math.min(currentMeasure + 1, barCount),
+    changeLoopEnabled({
+      enabled,
+      loop,
+      currentMeasure,
+      barCount,
+      snapToBars,
+      onRangeChange,
+      onChange,
     });
   };
 
   return (
-    <div className="space-y-2 rounded-2xl border border-border bg-card/60 px-5 py-2.5">
+    <div
+      className={cn(
+        "space-y-2",
+        !embedded && "rounded-2xl border border-border bg-card/60 px-5 py-2.5",
+      )}
+    >
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <label className="flex items-center gap-2 text-sm text-foreground">
-          <Repeat
-            className={cn("h-4 w-4", loop.enabled ? "text-accent" : "text-muted-foreground")}
-            aria-hidden
-          />
-          <span>Repetir fragmento</span>
-          <Switch
-            checked={loop.enabled}
-            disabled={disabled}
-            onCheckedChange={toggle}
-            aria-label="Repetir fragmento"
-          />
-        </label>
+        {showToggle ? (
+          <label className="flex items-center gap-2 text-sm text-foreground">
+            <Repeat
+              className={cn("h-4 w-4", loop.enabled ? "text-accent" : "text-muted-foreground")}
+              aria-hidden
+            />
+            <span>Repetir fragmento</span>
+            <Switch
+              checked={loop.enabled}
+              disabled={disabled}
+              onCheckedChange={toggle}
+              aria-label="Repetir fragmento"
+            />
+          </label>
+        ) : null}
 
         {loop.enabled ? (
           <>
@@ -122,7 +130,11 @@ export function LoopControls({
                 onCheckedChange={(value) => {
                   onSnapChange?.(value);
                   if (value && hasSelection) {
-                    onRangeChange?.({ startTime: loop.startTime, endTime: loop.endTime, snap: true });
+                    onRangeChange?.({
+                      startTime: loop.startTime,
+                      endTime: loop.endTime,
+                      snap: true,
+                    });
                   }
                 }}
                 aria-label="Ajustar a compases"
@@ -137,7 +149,10 @@ export function LoopControls({
               aria-expanded={precise}
             >
               Ajuste preciso
-              <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", precise && "rotate-180")} aria-hidden />
+              <ChevronDown
+                className={cn("h-3.5 w-3.5 transition-transform", precise && "rotate-180")}
+                aria-hidden
+              />
             </button>
           </>
         ) : null}
@@ -202,7 +217,8 @@ export function LoopControls({
             Usar compás actual
           </Button>
           <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
-            Compás actual <span className="font-mono text-foreground">{currentMeasure}</span> / {barCount}
+            Compás actual <span className="font-mono text-foreground">{currentMeasure}</span> /{" "}
+            {barCount}
           </span>
         </div>
       ) : null}

@@ -2,12 +2,9 @@ import { useState } from "react";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { ArrowLeft, Clock } from "lucide-react";
 import { DrumKit } from "@/features/kit/DrumKit";
-import { TransportBar } from "@/features/playback/TransportBar";
 import { PlaybackStatusBar } from "@/features/playback/PlaybackStatusBar";
-import { LoopControls } from "@/features/playback/LoopControls";
 import { MidiDebugPanel } from "@/features/playback/MidiDebugPanel";
-import { MuteControls } from "@/features/playback/MuteControls";
-import { PracticeOptionsControls } from "@/features/playback/PracticeOptionsControls";
+import { PracticeControlDock } from "@/features/playback/PracticeControlDock";
 import { TrackControlsSheet } from "@/features/playback/TrackControlsSheet";
 import { useSongPlayer } from "@/features/playback/useSongPlayer";
 import { DifficultyBadge } from "@/features/songs/components/DifficultyBadge";
@@ -65,7 +62,7 @@ function PracticeSessionPage() {
   const displayDuration = playback.durationSec || importedSong?.durationSec || song.durationSec;
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-2.5 pb-20">
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 sm:flex sm:flex-wrap sm:justify-between">
         <div className="min-w-0 space-y-1">
           <h1 className="truncate text-xl font-semibold tracking-tight text-foreground md:text-2xl">
@@ -145,52 +142,7 @@ function PracticeSessionPage() {
         }
       />
 
-      <LoopControls
-        disabled={!loaded}
-        loop={playback.loop}
-        barIndex={playback.barIndex}
-        barCount={playback.barCount}
-        positionSec={playback.positionSec}
-        hasBarGrid={playback.hasBarGrid}
-        snapToBars={playback.snapToBars}
-        onSnapChange={playback.setSnapToBars}
-        onRangeChange={playback.setLoopRange}
-        onChange={playback.setLoop}
-      />
-
-      <PracticeOptionsControls
-        disabled={!loaded}
-        options={playback.practiceOptions}
-        onChange={playback.setPracticeOption}
-      />
-
-      {playback.practiceOptions.drums && playback.supportsDrumFamilyMute ? (
-        <MuteControls
-          disabled={!loaded}
-          mutedFamilies={playback.practiceOptions.mutedFamilies}
-          onToggle={playback.toggleMutedFamily}
-          onRestoreAll={playback.restoreAllPieces}
-          onMuteAll={playback.muteAllPieces}
-        />
-      ) : null}
-
-      <TransportBar
-        disabled={!loaded}
-        speed={playback.speed}
-        countInBars={playback.countInBars}
-        canGoToStart={playback.canGoToStart}
-        canGoToEnd={playback.canGoToEnd}
-        canStepBack={playback.canStepBack}
-        canStepForward={playback.canStepForward}
-        onPlay={playback.play}
-        onPause={playback.pause}
-        onGoToStart={playback.goToStart}
-        onGoToEnd={playback.goToEnd}
-        onPreviousBar={playback.previousBar}
-        onNextBar={playback.nextBar}
-        onSpeedChange={playback.setSpeed}
-        onCountInChange={playback.setCountInBars}
-      />
+      <PracticeControlDock disabled={!loaded} player={playback} />
 
       <MidiDebugPanel hits={playback.recentHits} litPads={playback.litPads} />
     </div>
