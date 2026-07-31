@@ -6,6 +6,7 @@ import type { PlaybackSpeed, PlaybackStatus } from "@/features/songs/types";
 import type { ImportedSong } from "@/features/songs/importedSong";
 import { isPercussionTrack, resolveEventTrack } from "@/features/songs/scoreTrackDiagnostics";
 import type { CountInBars, LoopState, MusicalPosition } from "./PlaybackEngine";
+import { createAlphaTabSettings } from "./alphaTabSettings";
 import { createDefaultPracticeOptions, type PracticeOptions } from "./practiceOptions";
 import type { PlayerTrackState } from "./SongPlayer";
 
@@ -16,6 +17,9 @@ export function useAlphaTabPlayer() {
   const apiRef = useRef<AlphaTab.AlphaTabApi | null>(null);
   const alphaTabRef = useRef<typeof AlphaTab | null>(null);
   const songRef = useRef<ImportedSong | null>(null);
+  const pendingSongRef = useRef<ImportedSong | null>(null);
+  const playWhenReadyRef = useRef(false);
+  const readyRef = useRef(false);
   const scoreRef = useRef<AlphaTab.model.Score | null>(null);
   const loopRef = useRef<LoopState>({
     enabled: false,
@@ -91,10 +95,20 @@ export function useAlphaTabPlayer() {
 
   const renderSong = useCallback(
     (song: ImportedSong) => {
-      const api = apiRef.current;
-      if (!api || song.payload.engine !== "alphatab") return;
-      api.stop();
+      if (song.payload.engine !== "alphatab") return;
       songRef.current = song;
+      const api = apiRef.current;
+      if (!api) {
+        pendingSongRef.current = song;
+        setReady(false);
+        setStatus("loading");
+        return;
+      }
+      pendingSongRef.current = null;
+      playWhenReadyRef.current = false;
+      readyRef.current = false;
+      setReady(false);
+      api.stop();
       scoreRef.current = song.payload.score;
       mutedTrackIdsRef.current = new Set();
       soloTrackIdsRef.current = new Set();
@@ -138,24 +152,26 @@ export function useAlphaTabPlayer() {
     void import("@coderline/alphatab").then((alphaTab) => {
       if (cancelled) return;
       alphaTabRef.current = alphaTab;
-      api = new alphaTab.AlphaTabApi(container, {
-        core: { fontDirectory: "/font/" },
-        player: {
-          enablePlayer: true,
-          soundFont: "/soundfont/sonivox.sf2",
-        },
-      });
+      api = new alphaTab.AlphaTabApi(container, createAlphaTabSettings(alphaTab));
       apiRef.current = api;
       api.midiEventsPlayedFilter = [alphaTab.midi.MidiEventType.NoteOn];
 
       api.playerReady.on(() => {
         if (cancelled) return;
+        readyRef.current = true;
         setReady(true);
         setStatus("idle");
         applyTrackMix();
+        if (playWhenReadyRef.current) {
+          playWhenReadyRef.current = false;
+          api?.play();
+        }
       });
       api.playerStateChanged.on(({ state }) => {
         if (!cancelled) {
+          if (state === alphaTab.synth.PlayerState.Playing) {
+            playWhenReadyRef.current = false;
+          }
           setStatus(state === alphaTab.synth.PlayerState.Playing ? "playing" : "paused");
         }
       });
@@ -219,15 +235,39 @@ export function useAlphaTabPlayer() {
           if (padId && practiceRef.current.visualGuide) highlight(padId);
         }
       });
+
+      const pendingSong = pendingSongRef.current;
+      if (pendingSong) renderSong(pendingSong);
     });
 
     return () => {
       cancelled = true;
+      readyRef.current = false;
+      playWhenReadyRef.current = false;
       api?.destroy();
       for (const timer of activePadTimers.values()) clearTimeout(timer);
       activePadTimers.clear();
     };
-  }, [applyTrackMix, highlight]);
+  }, [applyTrackMix, highlight, renderSong]);
+
+  const play = useCallback(() => {
+    const api = apiRef.current;
+    if (!api || !readyRef.current) {
+      playWhenReadyRef.current = true;
+      return;
+    }
+    if (!api.play()) playWhenReadyRef.current = true;
+  }, []);
+
+  const pause = useCallback(() => {
+    playWhenReadyRef.current = false;
+    apiRef.current?.pause();
+  }, []);
+
+  const stop = useCallback(() => {
+    playWhenReadyRef.current = false;
+    apiRef.current?.stop();
+  }, []);
 
   const setSpeed = useCallback((value: PlaybackSpeed) => {
     if (apiRef.current) apiRef.current.playbackSpeed = value;
@@ -331,9 +371,9 @@ export function useAlphaTabPlayer() {
     canStepBack: positionSec > 0.001,
     canStepForward: durationSec > 0 && positionSec < durationSec - 0.001,
     load: renderSong,
-    play: () => apiRef.current?.play(),
-    pause: () => apiRef.current?.pause(),
-    stop: () => apiRef.current?.stop(),
+    play,
+    pause,
+    stop,
     seek,
     setSpeed,
     setLoop: (next: { enabled: boolean; startMeasure: number; endMeasure: number }) => {

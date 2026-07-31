@@ -8,6 +8,7 @@ import {
   Settings2,
   SkipBack,
   SkipForward,
+  Square,
   VolumeX,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -35,7 +36,6 @@ interface PracticeControlDockProps {
 }
 
 export function PracticeControlDock({ disabled, player }: PracticeControlDockProps) {
-  const playing = player.status === "playing";
   const currentMeasure = Math.min(player.barIndex + 1, player.barCount);
 
   const toggleLoop = (enabled: boolean) =>
@@ -85,11 +85,15 @@ export function PracticeControlDock({ disabled, player }: PracticeControlDockPro
     <>
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 shadow-[0_-8px_30px_rgba(0,0,0,0.18)] backdrop-blur md:left-60">
         <div className="hidden min-h-16 items-center gap-3 px-4 py-2 xl:flex">
-          <PlayPauseButton
-            playing={playing}
+          <TransportControls
             disabled={disabled}
+            canStepBack={player.canStepBack}
+            canStepForward={player.canStepForward}
+            onPreviousBar={player.previousBar}
             onPlay={player.play}
             onPause={player.pause}
+            onStop={player.stop}
+            onNextBar={player.nextBar}
           />
 
           <SpeedButtons disabled={disabled} speed={player.speed} onChange={player.setSpeed} />
@@ -171,12 +175,16 @@ export function PracticeControlDock({ disabled, player }: PracticeControlDockPro
           </div>
         </div>
 
-        <div className="grid min-h-16 grid-cols-4 items-center gap-1 px-2 py-2 xl:hidden">
-          <PlayPauseButton
-            playing={playing}
+        <div className="grid min-h-16 grid-cols-[auto_1fr_1fr_1fr] items-center gap-1 px-2 py-2 xl:hidden">
+          <TransportControls
             disabled={disabled}
+            canStepBack={player.canStepBack}
+            canStepForward={player.canStepForward}
+            onPreviousBar={player.previousBar}
             onPlay={player.play}
             onPause={player.pause}
+            onStop={player.stop}
+            onNextBar={player.nextBar}
             compact
           />
           <MobileSpeed disabled={disabled} speed={player.speed} onChange={player.setSpeed} />
@@ -249,34 +257,83 @@ export function PracticeControlDock({ disabled, player }: PracticeControlDockPro
   );
 }
 
-function PlayPauseButton({
-  playing,
+function TransportControls({
   disabled,
+  canStepBack,
+  canStepForward,
+  onPreviousBar,
   onPlay,
   onPause,
+  onStop,
+  onNextBar,
   compact = false,
 }: {
-  playing: boolean;
   disabled: boolean;
+  canStepBack: boolean;
+  canStepForward: boolean;
+  onPreviousBar: () => void;
   onPlay: () => void;
   onPause: () => void;
+  onStop: () => void;
+  onNextBar: () => void;
   compact?: boolean;
+}) {
+  return (
+    <div className={cn("flex items-center gap-1", compact && "gap-0")}>
+      <TransportControl
+        label="Retroceder un compás"
+        disabled={disabled || !canStepBack}
+        onClick={onPreviousBar}
+        compact={compact}
+      >
+        <ChevronLeft aria-hidden />
+      </TransportControl>
+      <TransportControl label="Reproducir" disabled={disabled} onClick={onPlay} compact={compact}>
+        <Play aria-hidden />
+      </TransportControl>
+      <TransportControl label="Pausa" disabled={disabled} onClick={onPause} compact={compact}>
+        <Pause aria-hidden />
+      </TransportControl>
+      <TransportControl label="Detener" disabled={disabled} onClick={onStop} compact={compact}>
+        <Square aria-hidden />
+      </TransportControl>
+      <TransportControl
+        label="Avanzar un compás"
+        disabled={disabled || !canStepForward}
+        onClick={onNextBar}
+        compact={compact}
+      >
+        <ChevronRight aria-hidden />
+      </TransportControl>
+    </div>
+  );
+}
+
+function TransportControl({
+  label,
+  disabled,
+  onClick,
+  compact,
+  children,
+}: {
+  label: string;
+  disabled: boolean;
+  onClick: () => void;
+  compact: boolean;
+  children: React.ReactNode;
 }) {
   return (
     <Button
       type="button"
-      variant="default"
-      size={compact ? "default" : "icon"}
+      variant={label === "Reproducir" ? "default" : "ghost"}
+      size="icon"
       disabled={disabled}
-      onClick={playing ? onPause : onPlay}
-      aria-label={playing ? "Pausar" : "Reproducir"}
-      className={cn(
-        "rounded-full",
-        compact && "h-11 min-w-0 flex-col gap-0.5 rounded-xl px-1 text-[11px]",
-      )}
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className={cn("rounded-full", compact && "h-10 w-8 rounded-xl")}
     >
-      {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
-      {compact ? (playing ? "Pausa" : "Reproducir") : null}
+      {children}
     </Button>
   );
 }
@@ -358,20 +415,6 @@ function AdditionalTransport({ disabled, player }: PracticeControlDockProps) {
           onClick={player.goToStart}
         >
           <SkipBack aria-hidden />
-        </IconButton>
-        <IconButton
-          label="Retroceder un compás"
-          disabled={disabled || !player.canStepBack}
-          onClick={player.previousBar}
-        >
-          <ChevronLeft aria-hidden />
-        </IconButton>
-        <IconButton
-          label="Avanzar un compás"
-          disabled={disabled || !player.canStepForward}
-          onClick={player.nextBar}
-        >
-          <ChevronRight aria-hidden />
         </IconButton>
         <IconButton
           label="Ir al final"

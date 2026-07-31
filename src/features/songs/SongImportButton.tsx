@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { midiParser } from "@/features/midi/midiParser";
+import { createAlphaTabSettings } from "@/features/playback/alphaTabSettings";
 import { describeProgram, isPercussionTrack } from "./scoreTrackDiagnostics";
 import type { ImportedSong, ImportedSongFormat } from "./importedSong";
 
@@ -64,7 +65,10 @@ export function SongImportButton({ onLoaded }: SongImportButtonProps) {
 
       const alphaTab = await import("@coderline/alphatab");
       const bytes = new Uint8Array(await file.arrayBuffer());
-      const score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(bytes);
+      const score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(
+        bytes,
+        createAlphaTabSettings(alphaTab),
+      );
       const drumTracks = score.tracks.filter(isPercussionTrack);
       onLoaded({
         fileName: file.name,
